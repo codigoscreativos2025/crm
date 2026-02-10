@@ -1,0 +1,62 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  apiKey    String   @unique
+  role      String   @default("USER") // USER, ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contacts  Contact[]
+  funnels   Funnel[]
+}
+
+model Funnel {
+  id      Int     @id @default(autoincrement())
+  name    String
+  userId  Int
+  user    User    @relation(fields: [userId], references: [id])
+  stages  Stage[]
+}
+
+model Stage {
+  id       Int       @id @default(autoincrement())
+  name     String
+  order    Int
+  funnelId Int
+  funnel   Funnel    @relation(fields: [funnelId], references: [id])
+  contacts Contact[]
+}
+
+model Contact {
+  id        Int       @id @default(autoincrement())
+  phone     String
+  name      String?
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User      @relation(fields: [userId], references: [id])
+  messages  Message[]
+  stageId   Int?
+  stage     Stage?    @relation(fields: [stageId], references: [id])
+
+  @@unique([userId, phone])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  body      String
+  timestamp DateTime @default(now())
+  status    String   @default("sent")
+  direction String
+  contactId Int
+  contact   Contact  @relation(fields: [contactId], references: [id])
+}
