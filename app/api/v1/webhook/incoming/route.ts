@@ -5,7 +5,7 @@ import { authenticateApiKey } from "@/lib/auth";
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userApiKey, contactPhone, contactName, message, timestamp } = body;
+        const { userApiKey, contactPhone, contactName, message, timestamp, stageId } = body;
 
         // 1. Authenticate Request
         const user = await authenticateApiKey(userApiKey);
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
             update: {
                 // Update name if provided and previously null, or just keep latest
                 name: contactName || undefined,
+                stageId: stageId ? parseInt(stageId) : undefined,
             },
             create: {
                 phone: contactPhone,

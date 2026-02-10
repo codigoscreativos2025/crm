@@ -54,16 +54,22 @@ Easypanel es un panel de control visual para Docker (parecido a Heroku o Vercel 
 3.  **Variables de Entorno (Environment)**:
     *   Ve a la pestaña **Environment**.
     *   Agrega las siguientes variables:
-        *   `DATABASE_URL`: `file:/app/prisma/dev.db` (Ruta absoluta recomendada para evitar errores).
-        *   `AUTH_SECRET`: Genera una clave segura.
+    *   Agrega las siguientes variables:
+        *   `DATABASE_URL`: `file:/app/db/dev.db` (Importante: usaremos un volumen en `/app/db`).
+        *   `AUTH_SECRET`: Genera una clave segura. Puedes usar este comando en tu terminal para generar una: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
         *   `AUTH_TRUST_HOST`: `true`
         *   `NEXTAUTH_URL`: `https://crmpivot-crm.xfozpf.easypanel.host`
-        *   `AUTH_URL`: `https://crmpivot-crm.xfozpf.easypanel.host` (Recomendado para NextAuth v5).
+        *   `AUTH_URL`: `https://crmpivot-crm.xfozpf.easypanel.host`
+
 
 4.  **Persistencia (Importante)**:
     *   Como usamos SQLite, la base de datos es un archivo dentro del contenedor. Si reinicias el despliegue, ¡se borrará!
-    *   Para evitar esto, en Easypanel ve a **Volumes** o **Storage**.
-    *   **Mount Path**: `/app/prisma` (donde vive `dev.db`).
+    *   Para evitar esto, en Easypanel ve a **Service** -> **Storage**.
+    *   Agrega un "Mount":
+        *   **Type**: Bind Mount (o Volume)
+        *   **Mount Path**: `/app/db`
+        *   (Si es Bind Mount) **Host Path**: `/etc/easypanel/projects/tu-proyecto/db` (o deja que Easypanel lo gestione si usas Volume).
+    *   Esto asegura que `dev.db` se guarde en el disco del servidor.
 
 ### Paso 4: Desplegar
 ### Paso 5: Inicializar la Base de Datos (¡Muy Importante!)
