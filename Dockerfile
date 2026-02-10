@@ -29,6 +29,7 @@ COPY . .
 # ENV NEXT_TELEMETRY_DISABLED 1
 
 # Generate Prisma Client
+ENV DATABASE_URL="file:./db.sqlite"
 RUN npx prisma generate
 
 RUN npm run build
