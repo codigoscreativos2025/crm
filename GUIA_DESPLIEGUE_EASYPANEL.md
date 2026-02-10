@@ -36,7 +36,7 @@ Easypanel es un panel de control visual para Docker (parecido a Heroku o Vercel 
             git add .
             git commit -m "Primer commit CRM Whatsapp"
             git branch -M main
-            git remote add origin https://github.com/TU-USUARIO/crm-whatsapp.git
+            git remote add origin https://https://github.com/codigoscreativos2025/crm.git
             git push -u origin main
             ```
             *(Si te pide login, usa tu usuario y contraseña/token de GitHub)*.
