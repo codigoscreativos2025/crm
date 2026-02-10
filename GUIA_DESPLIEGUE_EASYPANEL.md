@@ -51,11 +51,19 @@ Easypanel es un panel de control visual para Docker (parecido a Heroku o Vercel 
     *   Asegúrate de que el puerto expuesto sea `3000`.
 
 ### Paso 3: Variables de Entorno y Datos
-1.  En la pestaña **Environment**, no necesitas poner nada especial por ahora, a menos que cambies la base de datos a PostgreSQL (`DATABASE_URL`).
-2.  **Persistencia (Importante)**:
+3.  **Variables de Entorno (Environment)**:
+    *   Ve a la pestaña **Environment**.
+    *   Agrega las siguientes variables:
+        *   `DATABASE_URL`: `file:/app/prisma/dev.db` (Ruta absoluta recomendada para evitar errores).
+        *   `AUTH_SECRET`: Genera una clave segura.
+        *   `AUTH_TRUST_HOST`: `true`
+        *   `NEXTAUTH_URL`: `https://crmpivot-crm.xfozpf.easypanel.host`
+        *   `AUTH_URL`: `https://crmpivot-crm.xfozpf.easypanel.host` (Recomendado para NextAuth v5).
+
+4.  **Persistencia (Importante)**:
     *   Como usamos SQLite, la base de datos es un archivo dentro del contenedor. Si reinicias el despliegue, ¡se borrará!
     *   Para evitar esto, en Easypanel ve a **Volumes** o **Storage**.
-    *   Monta un volumen en la ruta: `/app/prisma` (donde vive `dev.db`).
+    *   **Mount Path**: `/app/prisma` (donde vive `dev.db`).
 
 ### Paso 4: Desplegar
 ### Paso 5: Inicializar la Base de Datos (¡Muy Importante!)
