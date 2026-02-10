@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
                 body: message,
                 direction: "outbound", // Sent by Agent/Us
                 status: "sent",
-                timestamp: timestamp ? new Date(timestamp * 1000) : new Date(),
+                timestamp: timestamp ? (typeof timestamp === 'number' && timestamp < 10000000000 ? new Date(timestamp * 1000) : new Date(timestamp)) : new Date(),
                 contactId: contact.id,
             },
         });
