@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X } from 'lucide-react';
 import FunnelSelector from '@/components/FunnelSelector';
 import ContactInfo from '@/components/ContactInfo';
-import EmojiPicker from 'emoji-picker-react';
+import dynamic from 'next/dynamic';
+
+const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
 
 interface Message {
     id: number;
