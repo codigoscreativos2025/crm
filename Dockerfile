@@ -68,4 +68,4 @@ ENV HOSTNAME "0.0.0.0"
 
 # Server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
-CMD ["/bin/sh", "-c", "npx prisma db push && node server.js"]
+CMD ["/bin/sh", "-c", "npx prisma@5.13.0 db push && node server.js"]
