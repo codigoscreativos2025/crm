@@ -40,6 +40,7 @@ export default function ChatPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearch, setShowSearch] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
+    const [showEmoji, setShowEmoji] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -93,6 +94,11 @@ export default function ChatPage() {
         } finally {
             setSending(false);
         }
+    };
+
+    const onEmojiClick = (emojiData: any) => {
+        setNewMessage(prev => prev + emojiData.emoji);
+        setShowEmoji(false);
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,13 +218,6 @@ export default function ChatPage() {
             console.error(error);
         }
     };
-
-    const onEmojiClick = (emojiData: any) => {
-        setNewMessage(prev => prev + emojiData.emoji);
-        setShowEmoji(false);
-    };
-
-    const [showEmoji, setShowEmoji] = useState(false);
 
     const filteredMessages = messages.filter(m =>
         m.body.toLowerCase().includes(searchQuery.toLowerCase())
