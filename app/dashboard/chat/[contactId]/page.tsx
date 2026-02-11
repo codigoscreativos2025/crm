@@ -14,6 +14,9 @@ interface Message {
     direction: 'inbound' | 'outbound';
     status: string;
     timestamp: string;
+    fileUrl?: string | null;
+    fileType?: string | null;
+    fileName?: string | null;
 }
 
 interface Contact {
@@ -42,6 +45,16 @@ export default function ChatPage() {
     const lastInboundMessage = messages
         .filter(m => m.direction === 'inbound')
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+    const safelyFormatTime = (dateString: string) => {
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            return '';
+        }
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -285,18 +298,13 @@ export default function ChatPage() {
                                         } pb-4`}
                                 >
                                     {/* Display File/Image if present */}
-                                    {/* @ts-ignore */}
                                     {msg.fileUrl && (
                                         <div className="mb-1">
-                                            {/* @ts-ignore */}
                                             {msg.fileType?.startsWith('image/') ? (
-                                                /* @ts-ignore */
-                                                <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="max-w-full h-auto rounded-md cursor-pointer hover:opacity-90 transition" onClick={() => window.open(msg.fileUrl, '_blank')} />
+                                                <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="max-w-full h-auto rounded-md cursor-pointer hover:opacity-90 transition" onClick={() => window.open(msg.fileUrl!, '_blank')} />
                                             ) : (
-                                                /* @ts-ignore */
                                                 <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-gray-100 p-2 rounded hover:bg-gray-200 transition text-blue-600">
                                                     <Paperclip className="h-4 w-4" />
-                                                    {/* @ts-ignore */}
                                                     <span className="truncate max-w-[150px]">{msg.fileName || 'Archivo adjunto'}</span>
                                                 </a>
                                             )}
@@ -306,7 +314,7 @@ export default function ChatPage() {
                                     <p className="text-gray-900 px-1">{msg.body}</p>
                                     <div className="flex justify-end items-center gap-1 absolute bottom-0.5 right-2">
                                         <span className="text-[10px] text-gray-500">
-                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {safelyFormatTime(msg.timestamp)}
                                         </span>
                                         {msg.direction === 'outbound' && (
                                             <span className="text-blue-500 text-[10px]">✓✓</span>
