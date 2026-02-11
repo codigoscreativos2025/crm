@@ -137,27 +137,52 @@ export async function DELETE(req: NextRequest) {
 
     const searchParams = req.nextUrl.searchParams;
     const contactId = searchParams.get('contactId');
+    const messageId = searchParams.get('messageId');
 
-    if (!contactId) {
-        return NextResponse.json({ error: "ID de contacto requerido" }, { status: 400 });
+    if (!contactId && !messageId) {
+        return NextResponse.json({ error: "ID de contacto o mensaje requerido" }, { status: 400 });
     }
 
     try {
-        // Verify ownership
-        const contact = await prisma.contact.findFirst({
-            where: {
-                id: parseInt(contactId),
-                userId: parseInt(session.user.id)
+        if (messageId) {
+            // Delete single message
+            const message = await prisma.message.findUnique({
+                where: { id: parseInt(messageId) },
+                include: { contact: true }
+            });
+
+            if (!message) return NextResponse.json({ error: "Mensaje no encontrado" }, { status: 404 });
+
+            // Verify ownership
+            if (message.contact.userId !== parseInt(session.user.id)) {
+                return NextResponse.json({ error: "No autorizado" }, { status: 403 });
             }
-        });
 
-        if (!contact) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+            await prisma.message.delete({
+                where: { id: parseInt(messageId) }
+            });
 
-        await prisma.message.deleteMany({
-            where: { contactId: parseInt(contactId) }
-        });
+            return NextResponse.json({ success: true, deletedId: messageId });
 
-        return NextResponse.json({ success: true });
+        } else if (contactId) {
+            // Verify ownership
+            const contact = await prisma.contact.findFirst({
+                where: {
+                    id: parseInt(contactId),
+                    userId: parseInt(session.user.id)
+                }
+            });
+
+            if (!contact) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
+            await prisma.message.deleteMany({
+                where: { contactId: parseInt(contactId) }
+            });
+
+            return NextResponse.json({ success: true });
+        }
+
+
     } catch (error) {
         return NextResponse.json({ error: "Error deleting messages" }, { status: 500 });
     }

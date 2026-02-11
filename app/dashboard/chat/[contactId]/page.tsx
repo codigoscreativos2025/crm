@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X } from 'lucide-react';
+import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X, Trash2 } from 'lucide-react';
 import FunnelSelector from '@/components/FunnelSelector';
 import ContactInfo from '@/components/ContactInfo';
 import dynamic from 'next/dynamic';
@@ -41,6 +41,11 @@ export default function ChatPage() {
     const [showSearch, setShowSearch] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showEmoji, setShowEmoji] = useState(false);
+
+    // New State for Preview and Hover
+    const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
+    const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,13 +106,24 @@ export default function ChatPage() {
         setShowEmoji(false);
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file || !contactId) return;
+        if (!file) return;
+
+        // Create local preview URL
+        const url = URL.createObjectURL(file);
+        setPreviewFile({ file, url });
+
+        // Reset input so same file can be selected again if needed
+        e.target.value = '';
+    };
+
+    const confirmSendFile = async () => {
+        if (!previewFile || !contactId) return;
 
         setSending(true);
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', previewFile.file);
 
         try {
             // 1. Upload File
@@ -125,7 +141,7 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contactId: Number(contactId),
-                    body: `📎 Archivo adjunto: ${name}`, // Fallback text
+                    body: `📎 Archivo adjunto: ${name}`,
                     direction: 'outbound',
                     status: 'sent',
                     fileUrl: url,
@@ -137,13 +153,32 @@ export default function ChatPage() {
             if (res.ok) {
                 const savedMsg = await res.json();
                 setMessages(prev => [...prev, savedMsg]);
+                setPreviewFile(null); // Close preview
             }
 
         } catch (error) {
             console.error("Error uploading/sending file:", error);
         } finally {
             setSending(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const cancelPreview = () => {
+        if (previewFile) {
+            URL.revokeObjectURL(previewFile.url);
+            setPreviewFile(null);
+        }
+    };
+
+    const handleDeleteMessage = async (messageId: number) => {
+        if (!confirm('¿Eliminar este mensaje?')) return;
+        try {
+            const res = await fetch(`/api/messages?messageId=${messageId}`, { method: 'DELETE' });
+            if (res.ok) {
+                setMessages(prev => prev.filter(m => m.id !== messageId));
+            }
+        } catch (error) {
+            console.error("Error deleting message:", error);
         }
     };
 
@@ -224,7 +259,62 @@ export default function ChatPage() {
     );
 
     return (
-        <div className="flex h-full flex-col bg-[#efeae2] bg-opacity-90" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")' }}>
+        <div className="flex h-full flex-col bg-[#efeae2] bg-opacity-90 relative" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")' }}>
+
+            {/* File Preview Modal */}
+            {previewFile && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div className="relative w-full max-w-lg rounded-xl bg-white p-4 shadow-2xl">
+                        <button
+                            onClick={cancelPreview}
+                            className="absolute -right-3 -top-3 rounded-full bg-red-500 p-1 text-white hover:bg-red-600 shadow-md"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        <div className="flex flex-col items-center gap-4">
+                            <h3 className="text-lg font-semibold text-gray-800">Vista previa del archivo</h3>
+
+                            {previewFile.file.type.startsWith('image/') ? (
+                                <img
+                                    src={previewFile.url}
+                                    alt="Preview"
+                                    className="max-h-[60vh] rounded-lg object-contain border border-gray-200"
+                                />
+                            ) : (
+                                <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-6">
+                                    <Paperclip className="h-10 w-10 text-gray-500" />
+                                    <div className="text-left">
+                                        <p className="font-medium text-gray-900">{previewFile.file.name}</p>
+                                        <p className="text-sm text-gray-500">{(previewFile.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex w-full gap-3 pt-2">
+                                <button
+                                    onClick={cancelPreview}
+                                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmSendFile}
+                                    disabled={sending}
+                                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-whatsapp-green px-4 py-2 font-medium text-white hover:bg-whatsapp-teal transition disabled:opacity-50"
+                                >
+                                    {sending ? 'Enviando...' : (
+                                        <>
+                                            <span>Enviar</span>
+                                            <Send className="h-4 w-4" />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Encabezado del Chat */}
             <div className="flex items-center justify-between bg-[#f0f2f5] px-4 py-3 border-b border-gray-200 cursor-pointer" onClick={() => setShowContactInfo(!showContactInfo)}>
@@ -300,13 +390,28 @@ export default function ChatPage() {
                                 key={msg.id}
                                 className={`flex mb-2 ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
                                     }`}
+                                onMouseEnter={() => setHoveredMessageId(msg.id)}
+                                onMouseLeave={() => setHoveredMessageId(null)}
                             >
                                 <div
                                     className={`relative max-w-[70%] rounded-lg px-2 py-1 shadow-sm text-sm ${msg.direction === 'outbound'
                                         ? 'bg-whatsapp-sent rounded-tr-none'
                                         : 'bg-white rounded-tl-none'
-                                        } pb-4`}
+                                        } pb-4 group`}
                                 >
+                                    {/* Delete Button */}
+                                    {hoveredMessageId === msg.id && (
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteMessage(msg.id);
+                                            }}
+                                            className="absolute -top-2 -right-2 z-10 cursor-pointer rounded-full bg-white p-1 text-gray-400 hover:text-red-500 shadow-sm border border-gray-200 transition-colors"
+                                            title="Eliminar mensaje"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </div>
+                                    )}
                                     {/* Display File/Image if present */}
                                     {msg.fileUrl && (
                                         <div className="mb-1">

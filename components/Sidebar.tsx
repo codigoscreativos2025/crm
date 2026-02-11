@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserCircle, LogOut, Filter, X, Settings } from 'lucide-react';
 import { signOut } from 'next-auth/react';
+import ThemeToggle from './ThemeToggle';
 
 interface Stage {
     id: number;
@@ -160,12 +161,12 @@ export default function Sidebar() {
             )}
 
             {/* Barra de Búsqueda */}
-            <div className="border-b border-gray-200 bg-white p-2">
-                <div className="flex items-center rounded-lg bg-[#f0f2f5] px-2 py-1">
+            <div className="border-b border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 p-2 transition-colors duration-200">
+                <div className="flex items-center rounded-lg bg-[#f0f2f5] dark:bg-gray-800 px-2 py-1 transition-colors duration-200">
                     <input
                         type="text"
                         placeholder="Buscar o iniciar nuevo chat"
-                        className="w-full bg-transparent px-2 py-1 text-sm outline-none text-gray-700 placeholder-gray-500"
+                        className="w-full bg-transparent px-2 py-1 text-sm outline-none text-gray-700 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -173,12 +174,12 @@ export default function Sidebar() {
             </div>
 
             {/* Lista de Contactos */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900 transition-colors duration-200">
                 {filteredContacts.map((contact) => (
                     <Link
                         key={contact.id}
                         href={`/dashboard/chat/${contact.id}`}
-                        className="group flex cursor-pointer items-center border-b border-gray-100 p-3 hover:bg-[#f5f6f6]"
+                        className="group flex cursor-pointer items-center border-b border-gray-100 dark:border-gray-800 p-3 hover:bg-[#f5f6f6] dark:hover:bg-gray-800 transition-colors duration-200"
                     >
                         <div className="mr-4 h-12 w-12 flex-shrink-0 rounded-full bg-gray-300">
                             <div className="flex h-full w-full items-center justify-center text-white font-bold bg-whatsapp-teal rounded-full">
@@ -187,15 +188,15 @@ export default function Sidebar() {
                         </div>
                         <div className="flex-1 overflow-hidden border-b border-gray-100 pb-3 pr-3 group-hover:border-none">
                             <div className="flex justify-between">
-                                <span className="truncate text-base font-normal text-gray-900">
+                                <span className="truncate text-base font-normal text-gray-900 dark:text-gray-100">
                                     {contact.name || contact.phone}
                                 </span>
-                                <span className="text-xs text-gray-400">
+                                <span className="text-xs text-gray-400 dark:text-gray-500">
                                     {contact.messages[0] ? new Date(contact.messages[0].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </span>
                             </div>
                             <div className="flex justify-between items-center mt-1">
-                                <p className="truncate text-sm text-gray-500 max-w-[140px]">
+                                <p className="truncate text-sm text-gray-500 dark:text-gray-400 max-w-[140px]">
                                     {contact.messages[0]?.body || 'Inicia una conversación'}
                                 </p>
                                 {contact.stage && (
