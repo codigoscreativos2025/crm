@@ -42,9 +42,13 @@ export default function ChatPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Calculate last inbound message for 24h window
-    const lastInboundMessage = messages
+    const lastInboundMessage = Array.isArray(messages) ? messages
         .filter(m => m.direction === 'inbound')
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        .sort((a, b) => {
+            const tA = new Date(a.timestamp).getTime();
+            const tB = new Date(b.timestamp).getTime();
+            return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+        })[0] : undefined;
 
     const safelyFormatTime = (dateString: string) => {
         try {
@@ -143,7 +147,12 @@ export default function ChatPage() {
                 const resMsgs = await fetch(`/api/messages?contactId=${contactId}`);
                 if (resMsgs.ok) {
                     const data = await resMsgs.json();
-                    setMessages(data);
+                    if (Array.isArray(data)) {
+                        setMessages(data);
+                    } else {
+                        console.error("API did not return an array", data);
+                        setMessages([]);
+                    }
                 }
 
                 // Fetch Contact Details (for name and stage)
@@ -313,7 +322,7 @@ export default function ChatPage() {
 
                                     <p className="text-gray-900 px-1">{msg.body}</p>
                                     <div className="flex justify-end items-center gap-1 absolute bottom-0.5 right-2">
-                                        <span className="text-[10px] text-gray-500">
+                                        <span className="text-[10px] text-gray-500" suppressHydrationWarning>
                                             {safelyFormatTime(msg.timestamp)}
                                         </span>
                                         {msg.direction === 'outbound' && (
