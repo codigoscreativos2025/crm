@@ -58,6 +58,9 @@ model Message {
   timestamp DateTime @default(now())
   status    String   @default("sent")
   direction String
+  fileUrl   String?
+  fileType  String?
+  fileName  String?
   contactId Int
   contact   Contact  @relation(fields: [contactId], references: [id])
 }

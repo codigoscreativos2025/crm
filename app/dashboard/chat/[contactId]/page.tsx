@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X } from 'lucide-react';
 import FunnelSelector from '@/components/FunnelSelector';
 import ContactInfo from '@/components/ContactInfo';
+import EmojiPicker from 'emoji-picker-react';
 
 interface Message {
     id: number;
@@ -91,7 +92,7 @@ export default function ChatPage() {
             });
 
             if (!uploadRes.ok) throw new Error("Upload failed");
-            const { url, name } = await uploadRes.json();
+            const { url, name, type } = await uploadRes.json();
 
             // 2. Send Message with Attachment URL
             const res = await fetch('/api/messages', {
@@ -99,9 +100,12 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contactId: Number(contactId),
-                    body: `📎 Archivo adjunto: ${name}\n${window.location.origin}${url}`,
+                    body: `📎 Archivo adjunto: ${name}`, // Fallback text
                     direction: 'outbound',
-                    status: 'sent'
+                    status: 'sent',
+                    fileUrl: url,
+                    fileType: type,
+                    fileName: name
                 })
             });
 
@@ -163,8 +167,6 @@ export default function ChatPage() {
     const handleClearChat = async () => {
         if (!confirm('¿Estás seguro de vaciar este chat? Esta acción no se puede deshacer.')) return;
         try {
-            // For now, we don't have a specific API to clear chat, but we can iterate delete or add a CLEAR endpoint
-            // Let's assume we implement DELETE /api/messages?contactId=...
             const res = await fetch(`/api/messages?contactId=${contactId}`, { method: 'DELETE' });
             if (res.ok) {
                 setMessages([]);
@@ -174,6 +176,25 @@ export default function ChatPage() {
             console.error(error);
         }
     };
+
+    const handleDeleteContact = async () => {
+        if (!confirm('¿Estás seguro de eliminar este chat y el contacto?')) return;
+        try {
+            const res = await fetch(`/api/contacts/${contactId}`, { method: 'DELETE' });
+            if (res.ok) {
+                window.location.href = '/dashboard';
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const onEmojiClick = (emojiData: any) => {
+        setNewMessage(prev => prev + emojiData.emoji);
+        setShowEmoji(false);
+    };
+
+    const [showEmoji, setShowEmoji] = useState(false);
 
     const filteredMessages = messages.filter(m =>
         m.body.toLowerCase().includes(searchQuery.toLowerCase())
@@ -224,13 +245,19 @@ export default function ChatPage() {
                         {showMenu && (
                             <div className="absolute right-0 top-8 bg-white shadow-lg rounded-md py-2 w-48 z-10 border border-gray-100">
                                 <button
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-red-600 text-sm"
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 text-sm"
                                     onClick={handleClearChat}
                                 >
                                     Vaciar Chat
                                 </button>
                                 <button
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 text-sm"
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-red-600 text-sm"
+                                    onClick={handleDeleteContact}
+                                >
+                                    Eliminar Chat
+                                </button>
+                                <button
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-400 text-sm"
                                     onClick={() => setShowMenu(false)}
                                 >
                                     Cancelar
@@ -255,10 +282,29 @@ export default function ChatPage() {
                                     className={`relative max-w-[70%] rounded-lg px-2 py-1 shadow-sm text-sm ${msg.direction === 'outbound'
                                         ? 'bg-whatsapp-sent rounded-tr-none'
                                         : 'bg-white rounded-tl-none'
-                                        }`}
+                                        } pb-4`}
                                 >
-                                    <p className="text-gray-900 pb-2 px-1">{msg.body}</p>
-                                    <div className="flex justify-end items-center gap-1 absolute bottom-1 right-2">
+                                    {/* Display File/Image if present */}
+                                    {/* @ts-ignore */}
+                                    {msg.fileUrl && (
+                                        <div className="mb-1">
+                                            {/* @ts-ignore */}
+                                            {msg.fileType?.startsWith('image/') ? (
+                                                /* @ts-ignore */
+                                                <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="max-w-full h-auto rounded-md cursor-pointer hover:opacity-90 transition" onClick={() => window.open(msg.fileUrl, '_blank')} />
+                                            ) : (
+                                                /* @ts-ignore */
+                                                <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-gray-100 p-2 rounded hover:bg-gray-200 transition text-blue-600">
+                                                    <Paperclip className="h-4 w-4" />
+                                                    {/* @ts-ignore */}
+                                                    <span className="truncate max-w-[150px]">{msg.fileName || 'Archivo adjunto'}</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <p className="text-gray-900 px-1">{msg.body}</p>
+                                    <div className="flex justify-end items-center gap-1 absolute bottom-0.5 right-2">
                                         <span className="text-[10px] text-gray-500">
                                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
@@ -273,8 +319,13 @@ export default function ChatPage() {
                     </div>
 
                     {/* Área de Entrada */}
-                    <div className="flex items-center gap-2 bg-[#f0f2f5] px-4 py-2">
-                        <Smile className="h-6 w-6 text-gray-500" />
+                    <div className="flex items-center gap-2 bg-[#f0f2f5] px-4 py-2 relative">
+                        {showEmoji && (
+                            <div className="absolute bottom-16 left-4 z-50">
+                                <EmojiPicker onEmojiClick={onEmojiClick} />
+                            </div>
+                        )}
+                        <Smile className="h-6 w-6 text-gray-500 cursor-pointer hover:text-gray-700" onClick={() => setShowEmoji(!showEmoji)} />
 
                         <input
                             type="file"

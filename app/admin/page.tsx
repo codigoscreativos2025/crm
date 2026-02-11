@@ -28,7 +28,7 @@ export default async function AdminPage() {
             _count: { select: { messages: true } }
         },
         orderBy: { updatedAt: 'desc' },
-        take: 100 // Limit for performance
+        take: 1000 // Limit for performance
     });
 
     return (

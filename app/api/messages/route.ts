@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { contactId, body: messageBody, direction, status } = body;
+        const { contactId, body: messageBody, direction, status, fileUrl, fileType, fileName } = body;
 
         if (!contactId || !messageBody) {
             return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
                 direction: direction || 'outbound',
                 status: status || 'sent',
                 contactId: parseInt(contactId),
+                fileUrl,
+                fileType,
+                fileName
             },
         });
 
@@ -97,7 +100,10 @@ export async function POST(req: NextRequest) {
                     direction: 'outbound',
                     timestamp: newMessage.timestamp,
                     userId: session.user.id,
-                    userEmail: session.user.email
+                    userEmail: session.user.email,
+                    fileUrl: fileUrl ? `${process.env.NEXTAUTH_URL || ''}${fileUrl}` : undefined,
+                    fileType,
+                    fileName
                 })
             }).catch(err => console.error("Error sending to n8n:", err));
         }
