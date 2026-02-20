@@ -66,7 +66,7 @@ export default function Sidebar() {
     }, []);
 
     const handleLogout = async () => {
-        await signOut({ callbackUrl: '/login' });
+        await signOut({ callbackUrl: 'https://crm.pivotsoluciones.com/login' });
     };
 
     // Filtros
