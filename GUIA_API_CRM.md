@@ -80,4 +80,51 @@ curl -X POST https://tudominio.com/api/v1/webhook/outgoing \
     "message": "¡Hola! Gracias por contactarnos. Selecciona una opción...",
     "timestamp": 1716000000
 }'
+
+---
+
+### C. Consultar Información de un Lead (`GET /api/v1/contacts`)
+
+Usa este endpoint desde n8n para obtener información completa de tus contactos: nombre, teléfono, etapa actual y embudo.
+
+#### Caso 1: Obtener Todos los Contactos
+Útil para listar todos tus leads con su etapa y embudo.
+```bash
+curl -X GET "https://tudominio.com/api/v1/contacts?userApiKey=tu-api-key-secreta"
 ```
+
+**Respuesta de ejemplo:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Juan Pérez",
+    "phone": "+5215555555555",
+    "stage": {
+      "id": 2,
+      "name": "Contactado",
+      "order": 2
+    },
+    "funnel": {
+      "id": 1,
+      "name": "Ventas Principal"
+    },
+    "lastMessage": "Me gustaría saber el precio.",
+    "lastMessageAt": "2026-02-20T12:00:00.000Z"
+  }
+]
+```
+
+#### Caso 2: Obtener un Lead Específico por Teléfono
+Ideal en n8n para consultar el estado del lead justo cuando entra un mensaje, usando su número como clave.
+```bash
+curl -X GET "https://tudominio.com/api/v1/contacts?userApiKey=tu-api-key-secreta&phone=%2B5215555555555"
+```
+*Nota: El `+` del teléfono debe ir codificado como `%2B` en la URL.*
+
+**Resultado:** Un array con el lead que tiene ese número. Si no existe, devuelve `[]`.
+
+#### Uso Típico en n8n
+1. **Trigger**: Llega un WhatsApp de `+5215555555555`.
+2. **HTTP Request Node**: `GET /api/v1/contacts?userApiKey=xxx&phone=%2B5215555555555`
+3. **IF Node**: Si `stage.name == "Nuevo Lead"` → envía bienvenida. Si `stage.name == "En Negociación"` → escala a humano.
