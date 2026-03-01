@@ -119,16 +119,7 @@ export default function ChatPage() {
 
     // Scroll Logic
     const scrollToBottom = (smooth = true) => {
-        if (!chatContainerRef.current) return;
-        requestAnimationFrame(() => {
-            const container = chatContainerRef.current;
-            if (container) {
-                container.scrollTo({
-                    top: container.scrollHeight,
-                    behavior: smooth ? 'smooth' : 'auto'
-                });
-            }
-        });
+        messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
     };
 
     const handleScroll = () => {

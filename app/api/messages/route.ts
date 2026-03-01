@@ -99,7 +99,11 @@ export async function POST(req: NextRequest) {
         });
 
         // Trigger n8n Webhook (Fire and Forget)
-        const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+        const userWithWebhook = await prisma.user.findUnique({
+            where: { id: parseInt(session.user.id) },
+            select: { n8nWebhookUrl: true }
+        });
+        const n8nWebhookUrl = userWithWebhook?.n8nWebhookUrl || process.env.N8N_WEBHOOK_URL;
 
         if (n8nWebhookUrl) {
             fetch(n8nWebhookUrl, {

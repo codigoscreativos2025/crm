@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
                 metricsEnabled: true,
                 isActive: true,
                 disabledMessage: true,
+                n8nWebhookUrl: true,
                 createdAt: true,
             },
             orderBy: {
