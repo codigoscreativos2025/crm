@@ -27,7 +27,7 @@ export default function RegisterPage() {
             });
 
             if (res.ok) {
-                router.push('/login?registered=true');
+                window.location.href = '/login?registered=true';
             } else {
                 const data = await res.json();
                 setError(data.error || 'Error al registrarse');

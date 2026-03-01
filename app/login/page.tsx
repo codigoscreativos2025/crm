@@ -40,7 +40,7 @@ function LoginForm() {
             }
             setLoading(false);
         } else {
-            router.push('/dashboard');
+            window.location.href = '/dashboard';
         }
     };
 
