@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
 
 export async function DELETE(
@@ -8,7 +8,7 @@ export async function DELETE(
 ) {
     try {
         const session = await auth();
-        if (!session || session.user.role !== 'ADMIN') {
+        if (!session || !session.user || (session.user as any).role !== 'ADMIN') {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
