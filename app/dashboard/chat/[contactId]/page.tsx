@@ -369,8 +369,8 @@ export default function ChatPage() {
 
     // Scroll and Read Status Effect on Load
     useEffect(() => {
-        if (messages.length > 0) {
-            // Wait slightly for DOM paint
+        if (!loading && messages.length > 0) {
+            // Queue scroll highly aggressively to ensure it forces browser scroll paint event
             setTimeout(() => {
                 const unreadIndex = messages.findIndex(m => m.direction === 'inbound' && m.isReadByAgent === false);
                 if (unreadIndex !== -1 && unreadSeparatorRef.current) {
@@ -378,12 +378,12 @@ export default function ChatPage() {
                 } else {
                     scrollToBottom(false);
                 }
-            }, 50);
+            }, 100);
 
             // Mark all as read conceptually in background
             markChatAsRead();
         }
-    }, [messages.length, contactId]);
+    }, [messages.length, contactId, loading]);
 
     // Escape Key Navigation Effect
     useEffect(() => {

@@ -106,23 +106,27 @@ export async function POST(req: NextRequest) {
         const n8nWebhookUrl = userWithWebhook?.n8nWebhookUrl || process.env.N8N_WEBHOOK_URL;
 
         if (n8nWebhookUrl) {
-            fetch(n8nWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messageId: newMessage.id,
-                    message: messageBody,
-                    contactPhone: contact.phone,
-                    contactName: contact.name,
-                    direction: 'outbound',
-                    timestamp: newMessage.timestamp,
-                    userId: session.user.id,
-                    userEmail: session.user.email,
-                    fileUrl: fileUrl ? `${process.env.NEXTAUTH_URL || ''}${fileUrl}` : undefined,
-                    fileType,
-                    fileName
-                })
-            }).catch(err => console.error("Error sending to n8n:", err));
+            try {
+                await fetch(n8nWebhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messageId: newMessage.id,
+                        message: messageBody,
+                        contactPhone: contact.phone,
+                        contactName: contact.name,
+                        direction: 'outbound',
+                        timestamp: newMessage.timestamp,
+                        userId: session.user.id,
+                        userEmail: session.user.email,
+                        fileUrl: fileUrl ? `${process.env.NEXTAUTH_URL || ''}${fileUrl}` : undefined,
+                        fileType,
+                        fileName
+                    })
+                });
+            } catch (err) {
+                console.error("Error sending to n8n:", err);
+            }
         }
 
         return NextResponse.json(newMessage);
