@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         const result = contacts.map(c => ({
             id: c.id,
             name: c.name,
+            nameConfirmed: c.nameConfirmed,
             phone: c.phone,
             stage: c.stage ? {
                 id: c.stage.id,

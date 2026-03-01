@@ -13,6 +13,7 @@ interface User {
     metricsEnabled: boolean;
     isActive: boolean;
     disabledMessage: string | null;
+    n8nWebhookUrl: string | null;
     createdAt: string;
 }
 
@@ -27,7 +28,7 @@ export default function AdminUsersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [editForm, setEditForm] = useState({ email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true, disabledMessage: '' });
+    const [editForm, setEditForm] = useState({ email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true, disabledMessage: '', n8nWebhookUrl: '' });
 
     // Search
     const [searchTerm, setSearchTerm] = useState('');
@@ -75,12 +76,12 @@ export default function AdminUsersPage() {
 
     const handleEdit = (user: User) => {
         setEditingUser(user);
-        setEditForm({ email: user.email, password: '', apiKey: user.apiKey, metricsEnabled: user.metricsEnabled, isActive: user.isActive, disabledMessage: user.disabledMessage || '' });
+        setEditForm({ email: user.email, password: '', apiKey: user.apiKey, metricsEnabled: user.metricsEnabled, isActive: user.isActive, disabledMessage: user.disabledMessage || '', n8nWebhookUrl: user.n8nWebhookUrl || '' });
     };
 
     const handleCancelEdit = () => {
         setEditingUser(null);
-        setEditForm({ email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true, disabledMessage: '' });
+        setEditForm({ email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true, disabledMessage: '', n8nWebhookUrl: '' });
         setError('');
     };
 
@@ -92,7 +93,8 @@ export default function AdminUsersPage() {
                 apiKey: editForm.apiKey,
                 metricsEnabled: editForm.metricsEnabled,
                 isActive: editForm.isActive,
-                disabledMessage: editForm.disabledMessage
+                disabledMessage: editForm.disabledMessage,
+                n8nWebhookUrl: editForm.n8nWebhookUrl
             };
 
             // Only send password if it was changed
@@ -315,6 +317,16 @@ export default function AdminUsersPage() {
                                                         placeholder="Evolution API Key"
                                                     />
                                                 </div>
+                                                <div className="flex items-center border rounded p-1">
+                                                    <div className="mx-2 text-gray-400 font-bold text-xs">🔗</div>
+                                                    <input
+                                                        type="text"
+                                                        value={editForm.n8nWebhookUrl}
+                                                        onChange={(e) => setEditForm({ ...editForm, n8nWebhookUrl: e.target.value })}
+                                                        className="w-full text-sm outline-none text-gray-900 bg-transparent"
+                                                        placeholder="n8n Webhook URL"
+                                                    />
+                                                </div>
                                                 <label className="flex items-center gap-2 cursor-pointer mt-2 text-sm text-gray-700">
                                                     <div className="relative">
                                                         <input
@@ -334,6 +346,10 @@ export default function AdminUsersPage() {
                                                 <div className="flex items-center gap-1 mb-1" title="API Key">
                                                     <Key className="h-3 w-3" />
                                                     <span className="truncate w-32">{user.apiKey || 'No configurada'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 mb-1" title="n8n Webhook URL">
+                                                    <div className="text-[10px] font-bold">🔗</div>
+                                                    <span className="truncate w-32">{user.n8nWebhookUrl || 'No configurado'}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
                                                     <span className={`h-2 w-2 rounded-full ${user.metricsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}></span>

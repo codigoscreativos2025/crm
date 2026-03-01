@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X, Trash2 } from 'lucide-react';
+import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X, Trash2, Copy, Forward } from 'lucide-react';
 import FunnelSelector from '@/components/FunnelSelector';
 import ContactInfo from '@/components/ContactInfo';
 import dynamic from 'next/dynamic';
@@ -27,6 +27,7 @@ interface Contact {
     name: string | null;
     phone: string;
     stageId: number | null;
+    nameConfirmed?: boolean;
 }
 
 export default function ChatPage() {
@@ -52,6 +53,13 @@ export default function ChatPage() {
     // New State for Preview and Hover
     const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
     const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+
+    // Message Selection Mode
+    const [selectedMessages, setSelectedMessages] = useState<number[]>([]);
+    const [showForwardModal, setShowForwardModal] = useState(false);
+    const [allContacts, setAllContacts] = useState<any[]>([]);
+    const [forwardSearch, setForwardSearch] = useState('');
+    const isSelectionMode = selectedMessages.length > 0;
 
     // UI Enhancements
     const [floatingDate, setFloatingDate] = useState<string | null>(null);
@@ -111,7 +119,16 @@ export default function ChatPage() {
 
     // Scroll Logic
     const scrollToBottom = (smooth = true) => {
-        messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+        if (!chatContainerRef.current) return;
+        requestAnimationFrame(() => {
+            const container = chatContainerRef.current;
+            if (container) {
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: smooth ? 'smooth' : 'auto'
+                });
+            }
+        });
     };
 
     const handleScroll = () => {
@@ -247,6 +264,71 @@ export default function ChatPage() {
         }
     };
 
+    const confirmContactName = async () => {
+        if (!contact) return;
+        try {
+            const res = await fetch(`/api/contacts/${contact.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: contact.name }) // Triggers nameConfirmed update
+            });
+            if (res.ok) {
+                setContact({ ...contact, nameConfirmed: true });
+            }
+        } catch (error) {
+            console.error("Error confirming name", error);
+        }
+    };
+
+    const toggleSelectMessage = (id: number) => {
+        setSelectedMessages(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
+    };
+
+    const handleCopySelected = () => {
+        const selectedMsgs = messages.filter(m => selectedMessages.includes(m.id)).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        const textToCopy = selectedMsgs.map(m => `[${safelyFormatTime(m.timestamp)}] ${m.direction === 'inbound' ? contact?.name || 'Cliente' : 'Yo'}: ${m.body}`).join('\n');
+        navigator.clipboard.writeText(textToCopy);
+        setSelectedMessages([]);
+        alert('Mensajes copiados al portapapeles');
+    };
+
+    const handleForwardSelected = async (targetContactId: number) => {
+        if (!targetContactId || selectedMessages.length === 0) return;
+        setSending(true);
+        const selectedMsgs = messages.filter(m => selectedMessages.includes(m.id)).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+        try {
+            for (const msg of selectedMsgs) {
+                let body = msg.body;
+                if (msg.direction === 'inbound') {
+                    body = `[Reenviado de ${contact?.name || 'Cliente'}]: ${msg.body}`;
+                }
+
+                await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contactId: Number(targetContactId),
+                        body: body,
+                        direction: 'outbound',
+                        status: 'sent',
+                        fileUrl: msg.fileUrl || undefined,
+                        fileType: msg.fileType || undefined,
+                        fileName: msg.fileName || undefined
+                    })
+                });
+            }
+            alert('Mensajes reenviados con éxito');
+            setShowForwardModal(false);
+            setSelectedMessages([]);
+        } catch (error) {
+            console.error('Error al reenviar', error);
+            alert('Ocurrió un error al reenviar algunos mensajes.');
+        } finally {
+            setSending(false);
+        }
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             if (!contactId) return;
@@ -276,6 +358,12 @@ export default function ChatPage() {
                     setTemplates(await resTmpl.json());
                 }
 
+                // Fetch All Contacts for Forwarding Feature
+                const resAll = await fetch('/api/contacts');
+                if (resAll.ok) {
+                    setAllContacts(await resAll.json());
+                }
+
             } catch (error) {
                 console.error('Error obteniendo datos', error);
             } finally {
@@ -291,20 +379,20 @@ export default function ChatPage() {
     // Scroll and Read Status Effect on Load
     useEffect(() => {
         if (messages.length > 0) {
-            // Setup a small timeout to allow DOM to paint large images/components before scrolling
+            // Wait slightly for DOM paint
             setTimeout(() => {
                 const unreadIndex = messages.findIndex(m => m.direction === 'inbound' && m.isReadByAgent === false);
                 if (unreadIndex !== -1 && unreadSeparatorRef.current) {
                     unreadSeparatorRef.current.scrollIntoView({ behavior: 'auto', block: 'center' });
                 } else {
-                    scrollToBottom(false); // jump immediately, no smooth scroll on load
+                    scrollToBottom(false);
                 }
-            }, 100);
+            }, 50);
 
             // Mark all as read conceptually in background
             markChatAsRead();
         }
-    }, [messages.length]); // Only run when message count changes significantly
+    }, [messages.length, contactId]);
 
     // Escape Key Navigation Effect
     useEffect(() => {
@@ -421,74 +509,114 @@ export default function ChatPage() {
                 </div>
             )}
 
-            {/* Encabezado del Chat */}
-            <div className="flex items-center justify-between bg-[#f0f2f5] px-4 py-3 border-b border-gray-200 cursor-pointer" onClick={() => setShowContactInfo(!showContactInfo)}>
-                <div className="flex items-center">
-                    <Link href="/dashboard" className="mr-2 md:hidden text-gray-500" onClick={(e) => e.stopPropagation()}>
-                        <ArrowLeft className="h-6 w-6" />
-                    </Link>
-                    <div className="h-10 w-10 rounded-full bg-gray-300">
-                        <div className="flex h-full w-full items-center justify-center text-white font-bold bg-whatsapp-teal rounded-full">
-                            {contact?.name ? contact.name.substring(0, 1).toUpperCase() : '#'}
-                        </div>
+            {/* Encabezado del Chat o Barra de Selección */}
+            {isSelectionMode ? (
+                <div className="flex items-center justify-between bg-whatsapp-teal text-white px-4 py-3 shadow-md z-10 transition-colors duration-200">
+                    <div className="flex items-center gap-6">
+                        <X className="h-6 w-6 cursor-pointer hover:bg-white/20 rounded-full p-1 transition" onClick={() => setSelectedMessages([])} />
+                        <span className="font-semibold text-lg">{selectedMessages.length} seleccionado(s)</span>
                     </div>
-                    <div className="ml-4">
-                        <h2 className="text-gray-900 font-medium">{contact?.name || `Contacto ${contactId}`}</h2>
-                        <p className="text-xs text-gray-500">{contact?.phone} • Click para info</p>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleCopySelected} className="flex flex-col items-center hover:bg-white/20 p-2 rounded transition" title="Copiar">
+                            <Copy className="h-5 w-5" />
+                        </button>
+                        <button onClick={() => setShowForwardModal(true)} className="flex flex-col items-center hover:bg-white/20 p-2 rounded transition" title="Reenviar">
+                            <Forward className="h-5 w-5" />
+                        </button>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 text-gray-500" onClick={(e) => e.stopPropagation()}>
-                    {/* Selector de Embudo */}
-                    {contact && <FunnelSelector contactId={contact.id} currentStageId={contact.stageId} />}
-
-                    {showSearch ? (
-                        <div className="flex items-center bg-white rounded-full px-3 py-1 animate-in fade-in slide-in-from-right-5">
-                            <input
-                                autoFocus
-                                type="text"
-                                className="w-32 md:w-48 outline-none text-sm text-gray-700"
-                                placeholder="Buscar..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onBlur={() => !searchQuery && setShowSearch(false)}
-                            />
-                            <X className="h-4 w-4 text-gray-400 cursor-pointer" onClick={() => { setSearchQuery(''); setShowSearch(false); }} />
-                        </div>
-                    ) : (
-                        <Search className="h-5 w-5 cursor-pointer hover:text-gray-700" onClick={() => setShowSearch(true)} />
-                    )}
-
-                    <div className="relative">
-                        <MoreVertical className="h-5 w-5 cursor-pointer hover:text-gray-700" onClick={() => setShowMenu(!showMenu)} />
-                        {showMenu && (
-                            <div className="absolute right-0 top-8 bg-white shadow-lg rounded-md py-2 w-48 z-10 border border-gray-100">
-                                <button
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 text-sm"
-                                    onClick={handleClearChat}
-                                >
-                                    Vaciar Chat
-                                </button>
-                                <button
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-red-600 text-sm"
-                                    onClick={handleDeleteContact}
-                                >
-                                    Eliminar Chat
-                                </button>
-                                <button
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-400 text-sm"
-                                    onClick={() => setShowMenu(false)}
-                                >
-                                    Cancelar
-                                </button>
+            ) : (
+                <div className="flex items-center justify-between bg-[#f0f2f5] px-4 py-3 border-b border-gray-200 cursor-pointer" onClick={() => setShowContactInfo(!showContactInfo)}>
+                    <div className="flex items-center">
+                        <Link href="/dashboard" className="mr-2 md:hidden text-gray-500" onClick={(e) => e.stopPropagation()}>
+                            <ArrowLeft className="h-6 w-6" />
+                        </Link>
+                        <div className="h-10 w-10 rounded-full bg-gray-300">
+                            <div className="flex h-full w-full items-center justify-center text-white font-bold bg-whatsapp-teal rounded-full">
+                                {contact?.name ? contact.name.substring(0, 1).toUpperCase() : '#'}
                             </div>
+                        </div>
+                        <div className="ml-4">
+                            <h2 className="text-gray-900 font-medium">{contact?.name || `Contacto ${contactId}`}</h2>
+                            <p className="text-xs text-gray-500">{contact?.phone} • Click para info</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-gray-500" onClick={(e) => e.stopPropagation()}>
+                        {/* Selector de Embudo */}
+                        {contact && <FunnelSelector contactId={contact.id} currentStageId={contact.stageId} />}
+
+                        {showSearch ? (
+                            <div className="flex items-center bg-white rounded-full px-3 py-1 animate-in fade-in slide-in-from-right-5">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    className="w-32 md:w-48 outline-none text-sm text-gray-700"
+                                    placeholder="Buscar..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onBlur={() => !searchQuery && setShowSearch(false)}
+                                />
+                                <X className="h-4 w-4 text-gray-400 cursor-pointer" onClick={() => { setSearchQuery(''); setShowSearch(false); }} />
+                            </div>
+                        ) : (
+                            <Search className="h-5 w-5 cursor-pointer hover:text-gray-700" onClick={() => setShowSearch(true)} />
                         )}
+
+                        <div className="relative">
+                            <MoreVertical className="h-5 w-5 cursor-pointer hover:text-gray-700" onClick={() => setShowMenu(!showMenu)} />
+                            {showMenu && (
+                                <div className="absolute right-0 top-8 bg-white shadow-lg rounded-md py-2 w-48 z-10 border border-gray-100">
+                                    <button
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 text-sm"
+                                        onClick={() => {
+                                            setSelectedMessages([]); // Force mode entry, but empty initially. Let user tap bubbles.
+                                            // A better way is to provide a "Seleccionar Mensajes" button that just alerts them to tap a bubble, or sets an explicit mode.
+                                            // For now, setting it to an empty array doesn't trigger isSelectionMode because length == 0. So we need to set a dummy ID or tell them.
+                                            alert("Mantén presionado o haz click en cualquier mensaje para seleccionarlo.");
+                                            setShowMenu(false);
+                                        }}
+                                    >
+                                        Seleccionar Mensajes
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 text-sm"
+                                        onClick={handleClearChat}
+                                    >
+                                        Vaciar Chat
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 text-red-600 text-sm"
+                                        onClick={handleDeleteContact}
+                                    >
+                                        Eliminar Chat
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-400 text-sm border-t mt-1 pt-1"
+                                        onClick={() => setShowMenu(false)}
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Área de Mensajes */}
-                <div className="flex-1 flex flex-col h-full relative relative">
+                <div className="flex-1 flex flex-col h-full relative">
+                    {contact && contact.nameConfirmed === false && (
+                        <div className="bg-yellow-50 text-yellow-800 px-4 py-2 flex items-center justify-between text-sm shadow-sm border-b border-yellow-200 z-10 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <span>¿El nombre del prospecto es <b>{contact?.name}</b>?</span>
+                            </div>
+                            <button onClick={confirmContactName} className="bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded font-medium transition cursor-pointer">
+                                Confirmar Nombre
+                            </button>
+                        </div>
+                    )}
+
                     {/* Floating Date Header */}
                     {floatingDate && (
                         <div className="absolute top-4 left-0 right-0 flex justify-center z-20 pointer-events-none transition-opacity duration-300">
@@ -538,15 +666,31 @@ export default function ChatPage() {
                                     )}
 
                                     <div
-                                        className={`flex mb-2 group relative ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                                        className={`flex mb-2 group relative transition-all duration-200 ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'} ${isSelectionMode ? 'cursor-pointer pl-10 pr-4' : ''} ${selectedMessages.includes(msg.id) ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}
                                         onMouseEnter={() => setHoveredMessageId(msg.id)}
                                         onMouseLeave={() => setHoveredMessageId(null)}
+                                        onClick={() => {
+                                            if (isSelectionMode) toggleSelectMessage(msg.id);
+                                        }}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            toggleSelectMessage(msg.id);
+                                        }}
                                     >
+                                        {/* Multiselect Checkbox overlay */}
+                                        {isSelectionMode && (
+                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                                                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedMessages.includes(msg.id) ? 'bg-whatsapp-teal border-whatsapp-teal text-white' : 'border-gray-400 bg-white'}`}>
+                                                    {selectedMessages.includes(msg.id) && <span className="text-xs font-bold leading-none select-none">✓</span>}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div
-                                            className={`relative max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm text-sm ${msg.direction === 'outbound'
+                                            className={`relative max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm text-sm transition-colors ${msg.direction === 'outbound'
                                                 ? 'bg-[#d9fdd3] dark:bg-[#005c4b] rounded-tr-none text-gray-900 dark:text-gray-100'
                                                 : 'bg-white dark:bg-[#202c33] rounded-tl-none text-gray-900 dark:text-gray-100'
-                                                } pb-5`}
+                                                } pb-5 ${selectedMessages.includes(msg.id) ? 'ring-2 ring-whatsapp-teal/50' : ''}`}
                                         >
                                             {/* Delete Button */}
                                             {hoveredMessageId === msg.id && (
@@ -698,6 +842,59 @@ export default function ChatPage() {
                     />
                 )}
             </div>
+
+            {/* Forward Modal */}
+            {showForwardModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl flex flex-col max-h-[80vh]">
+                        <button
+                            onClick={() => setShowForwardModal(false)}
+                            className="absolute right-4 top-4 rounded-full p-1 text-gray-500 hover:bg-gray-100 transition"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Reenviar a...</h3>
+
+                        <div className="relative mb-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar contacto..."
+                                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-whatsapp-teal text-gray-900"
+                                value={forwardSearch}
+                                onChange={e => setForwardSearch(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto min-h-[50vh]">
+                            {allContacts
+                                .filter(c => c.id.toString() !== contactId && (c.name?.toLowerCase().includes(forwardSearch.toLowerCase()) || c.phone.includes(forwardSearch)))
+                                .map(c => (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => handleForwardSelected(c.id)}
+                                        disabled={sending}
+                                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 border-b border-gray-100 transition disabled:opacity-50 text-left"
+                                    >
+                                        <div className="h-10 w-10 shrink-0 rounded-full bg-whatsapp-teal/20 flex items-center justify-center text-whatsapp-teal font-bold uppercase">
+                                            {c.name ? c.name.charAt(0) : '#'}
+                                        </div>
+                                        <div className="flex-1 truncate">
+                                            <p className="font-semibold text-gray-900 truncate">{c.name || 'Sin nombre'}</p>
+                                            <p className="text-xs text-gray-500">{c.phone}</p>
+                                        </div>
+                                        <Forward className="h-4 w-4 text-gray-400" />
+                                    </button>
+                                ))
+                            }
+                            {allContacts.length === 0 && (
+                                <p className="text-center text-gray-500 py-8 text-sm">Cargando contactos...</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

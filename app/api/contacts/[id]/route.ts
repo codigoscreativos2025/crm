@@ -41,15 +41,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const body = await req.json();
         const { stageId, name } = body;
 
+        const updateData: any = {
+            stageId: stageId ? parseInt(stageId) : undefined,
+        };
+
+        if (name) {
+            updateData.name = name;
+            updateData.nameConfirmed = true;
+        }
+
         const contact = await prisma.contact.update({
             where: {
                 id: parseInt(contactId),
                 userId: parseInt(session.user.id), // Ensure ownership
             },
-            data: {
-                stageId: stageId ? parseInt(stageId) : undefined,
-                name: name || undefined,
-            },
+            data: updateData,
         });
 
         return NextResponse.json(contact);

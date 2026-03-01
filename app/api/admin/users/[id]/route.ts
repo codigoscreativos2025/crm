@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         const targetUserId = parseInt(params.id);
         const body = await req.json();
-        const { email, password, apiKey, metricsEnabled, isActive, disabledMessage } = body;
+        const { email, password, apiKey, metricsEnabled, isActive, disabledMessage, n8nWebhookUrl } = body;
 
         const updateData: any = {};
 
@@ -31,6 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (typeof metricsEnabled === 'boolean') updateData.metricsEnabled = metricsEnabled;
         if (typeof isActive === 'boolean') updateData.isActive = isActive;
         if (disabledMessage !== undefined) updateData.disabledMessage = disabledMessage;
+        if (n8nWebhookUrl !== undefined) updateData.n8nWebhookUrl = n8nWebhookUrl;
 
         // In a real production app, this password should be hashed!
         // For this implementation, we are following the existing pattern of plaintext (as seen in seeded users).
@@ -63,6 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                 metricsEnabled: true,
                 isActive: true,
                 disabledMessage: true,
+                n8nWebhookUrl: true,
                 createdAt: true,
             }
         });
