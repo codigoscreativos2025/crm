@@ -54,6 +54,12 @@ export default function MetricsDashboard() {
                     </div>
                 </div>
                 <div className="flex gap-2">
+                    <button onClick={() => window.open('/api/metrics/export?format=excel', '_blank')} className="bg-white border text-sm text-whatsapp-green font-medium border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm hover:bg-gray-50 transition">
+                        Exportar Excel
+                    </button>
+                    <button onClick={() => window.open('/api/metrics/export?format=pdf', '_blank')} className="bg-white border text-sm text-red-500 font-medium border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm hover:bg-gray-50 transition">
+                        Exportar PDF
+                    </button>
                     <button className="bg-white border text-sm text-gray-600 border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm">
                         Últimos 30 Días
                     </button>
@@ -71,8 +77,11 @@ export default function MetricsDashboard() {
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-4xl font-bold text-gray-900">{data.kpis.totalLeads.toLocaleString()}</h3>
-                        <p className="text-xs text-gray-400 mt-1">Este mes</p>
+                        <div className="flex items-baseline gap-2">
+                            <h3 className="text-4xl font-bold text-gray-900">{data.kpis.totalLeads.toLocaleString()}</h3>
+                            <span className="text-sm font-semibold text-whatsapp-green">+{data.kpis.newLeadsToday} hoy</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">{data.kpis.leadsThisMonth} creados este mes</p>
                     </div>
                 </div>
 
@@ -220,6 +229,46 @@ export default function MetricsDashboard() {
                             ))}
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Bottom Row: Funnels & Table */}
+            <div className="space-y-6 mb-10">
+
+                {/* Funnel Stats */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6">Distribución por Embudos</h3>
+
+                    {data.funnelStats && data.funnelStats.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {data.funnelStats.map((funnel: any, idx: number) => (
+                                <div key={idx} className="border border-gray-100 p-4 rounded-xl bg-gray-50/50">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="font-bold text-gray-800">{funnel.name}</h4>
+                                        <span className="bg-whatsapp-green text-white text-xs px-2 py-1 rounded-full font-bold">
+                                            {funnel.totalLeads} Leads
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {funnel.stages.map((stage: any, sIdx: number) => (
+                                            <div key={sIdx} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-medium text-gray-700">{stage.name}</span>
+                                                    <span className="text-sm font-bold text-gray-900">{stage.count}</span>
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-1 flex items-center">
+                                                    <Clock className="w-3 h-3 mr-1" />
+                                                    Promedio: {stage.avgDaysRes} {stage.avgDaysRes === 1 ? 'hora' : 'horas'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-gray-500 text-sm">No hay embudos configurados o con datos.</div>
+                    )}
                 </div>
             </div>
 

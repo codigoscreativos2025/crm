@@ -90,7 +90,7 @@ function LoginForm() {
                     </button>
                 </form>
                 <div className="mt-4 text-center text-xs text-gray-500">
-                    <p>¿No tienes cuenta? <Link href="/register" className="text-blue-600 hover:underline">Regístrate</Link></p>
+                    <p>Contacta a tu administrador para obtener acceso</p>
                 </div>
             </div>
         </div>

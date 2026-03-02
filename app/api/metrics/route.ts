@@ -13,8 +13,10 @@ export async function GET(req: NextRequest) {
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { metricsEnabled: true, role: true }
+            select: { metricsEnabled: true, role: true, parentId: true }
         });
+
+        const ownerId = user?.parentId || userId;
 
         if (!user?.metricsEnabled && user?.role !== 'ADMIN') {
             return NextResponse.json({ error: "Métricas no habilitadas para esta cuenta" }, { status: 403 });
@@ -25,29 +27,38 @@ export async function GET(req: NextRequest) {
         thirtyDaysAgo.setDate(now.getDate() - 30);
 
         // KPI: Total Leads
-        const totalLeads = await prisma.contact.count();
+        const totalLeads = await prisma.contact.count({
+            where: { userId: ownerId }
+        });
 
         // KPI: Leads this month
         const leadsThisMonth = await prisma.contact.count({
-            where: { createdAt: { gte: thirtyDaysAgo } }
+            where: { userId: ownerId, createdAt: { gte: thirtyDaysAgo } }
+        });
+
+        const newLeadsToday = await prisma.contact.count({
+            where: {
+                userId: ownerId,
+                createdAt: { gte: new Date(now.setHours(0, 0, 0, 0)) }
+            }
         });
 
         // KPI: Active Dialogs (Messages this month)
         const messagesThisMonth = await prisma.message.count({
-            where: { timestamp: { gte: thirtyDaysAgo } }
+            where: { contact: { userId: ownerId }, timestamp: { gte: thirtyDaysAgo } }
         });
 
         // KPI: Unread / Unreplied Chats
         const unrepliedMessages = await prisma.message.count({
-            where: { direction: 'inbound', isReadByAgent: false }
+            where: { contact: { userId: ownerId }, direction: 'inbound', isReadByAgent: false }
         });
 
         // Leads by Date (Last 7 days for the chart)
         const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(now.getDate() - 7);
+        sevenDaysAgo.setDate(new Date().getDate() - 7);
 
         const recentContacts = await prisma.contact.findMany({
-            where: { createdAt: { gte: sevenDaysAgo } },
+            where: { userId: ownerId, createdAt: { gte: sevenDaysAgo } },
             select: { createdAt: true }
         });
 
@@ -58,7 +69,7 @@ export async function GET(req: NextRequest) {
 
         const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-        recentContacts.forEach(c => {
+        recentContacts.forEach((c: { createdAt: Date }) => {
             const dayName = dayNames[c.createdAt.getDay()];
             daysMap[dayName]++;
         });
@@ -83,15 +94,41 @@ export async function GET(req: NextRequest) {
             { name: 'Web Widget', value: parseInt((totalLeads * 0.20).toString()), color: '#4A90E2' },
         ];
 
-        // Recent Messages
+        // Advanced Metrics: Funnel Distribution
+        const funnels = await prisma.funnel.findMany({
+            where: { userId: ownerId },
+            include: {
+                stages: {
+                    include: {
+                        _count: {
+                            select: { contacts: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Map funnel data for charts
+        const funnelStats = funnels.map((f: any) => ({
+            name: f.name,
+            totalLeads: f.stages.reduce((acc: number, stage: any) => acc + stage._count.contacts, 0),
+            stages: f.stages.map((stage: any) => ({
+                name: stage.name,
+                count: stage._count.contacts,
+                // Optional: mock time average in stage, you could compute differences over messages/updatedAt
+                avgDaysRes: Math.floor(Math.random() * 5) + 1
+            }))
+        }));
+
+        // Recent Messages (Global across tenant)
         const recentMessages = await prisma.message.findMany({
             take: 5,
             orderBy: { timestamp: 'desc' },
-            where: { direction: 'inbound' },
+            where: { contact: { userId: ownerId }, direction: 'inbound' },
             include: { contact: true }
         });
 
-        const formattedRecentMessages = recentMessages.map(m => ({
+        const formattedRecentMessages = recentMessages.map((m: any) => ({
             id: m.id,
             contactName: m.contact.name || m.contact.phone,
             snippet: m.body.length > 40 ? m.body.substring(0, 40) + '...' : m.body,
@@ -105,11 +142,13 @@ export async function GET(req: NextRequest) {
                 totalLeads,
                 leadsThisMonth,
                 messagesThisMonth,
-                unrepliedMessages
+                unrepliedMessages,
+                newLeadsToday
             },
             leadsTrend,
             channelPerformance,
             leadSources,
+            funnelStats,
             recentMessages: formattedRecentMessages
         });
 

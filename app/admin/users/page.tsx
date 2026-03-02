@@ -10,8 +10,12 @@ interface User {
     email: string;
     role: string;
     apiKey: string;
-    metricsEnabled: boolean;
     isActive: boolean;
+    metricsEnabled: boolean;
+    canManageUsers: boolean;
+    canEditTemplates: boolean;
+    canExportData: boolean;
+    parentId: number | null;
     disabledMessage: string | null;
     n8nWebhookUrl: string | null;
     createdAt: string;
@@ -28,7 +32,18 @@ export default function AdminUsersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [editForm, setEditForm] = useState({ email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true, disabledMessage: '', n8nWebhookUrl: '' });
+    const [editForm, setEditForm] = useState({
+        email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
+        disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
+    });
+
+    // New User Form
+    const [showNewUserModal, setShowNewUserModal] = useState(false);
+    const [newUserForm, setNewUserForm] = useState({
+        email: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
+        canManageUsers: false, canEditTemplates: false, canExportData: false
+    });
+    const [creatingUser, setCreatingUser] = useState(false);
 
     // Search
     const [searchTerm, setSearchTerm] = useState('');
@@ -76,12 +91,20 @@ export default function AdminUsersPage() {
 
     const handleEdit = (user: User) => {
         setEditingUser(user);
-        setEditForm({ email: user.email, password: '', apiKey: user.apiKey, metricsEnabled: user.metricsEnabled, isActive: user.isActive, disabledMessage: user.disabledMessage || '', n8nWebhookUrl: user.n8nWebhookUrl || '' });
+        setEditForm({
+            email: user.email, password: '', apiKey: user.apiKey,
+            metricsEnabled: user.metricsEnabled, isActive: user.isActive,
+            disabledMessage: user.disabledMessage || '', n8nWebhookUrl: user.n8nWebhookUrl || '',
+            canManageUsers: user.canManageUsers, canEditTemplates: user.canEditTemplates, canExportData: user.canExportData
+        });
     };
 
     const handleCancelEdit = () => {
         setEditingUser(null);
-        setEditForm({ email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true, disabledMessage: '', n8nWebhookUrl: '' });
+        setEditForm({
+            email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
+            disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
+        });
         setError('');
     };
 
@@ -92,6 +115,9 @@ export default function AdminUsersPage() {
                 email: editForm.email,
                 apiKey: editForm.apiKey,
                 metricsEnabled: editForm.metricsEnabled,
+                canManageUsers: editForm.canManageUsers,
+                canEditTemplates: editForm.canEditTemplates,
+                canExportData: editForm.canExportData,
                 isActive: editForm.isActive,
                 disabledMessage: editForm.disabledMessage,
                 n8nWebhookUrl: editForm.n8nWebhookUrl
@@ -154,6 +180,36 @@ export default function AdminUsersPage() {
         }
     };
 
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setCreatingUser(true);
+        setError('');
+
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newUserForm)
+            });
+
+            if (res.ok) {
+                setShowNewUserModal(false);
+                setNewUserForm({
+                    email: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
+                    canManageUsers: false, canEditTemplates: false, canExportData: false
+                });
+                fetchUsers();
+            } else {
+                const data = await res.json();
+                setError(data.error || 'Error al crear usuario');
+            }
+        } catch (err) {
+            setError('Error de conexión.');
+        } finally {
+            setCreatingUser(false);
+        }
+    };
+
     const filteredUsers = users.filter(user =>
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.id.toString().includes(searchTerm)
@@ -170,17 +226,88 @@ export default function AdminUsersPage() {
                     </Link>
                     <h1 className="text-2xl font-bold text-gray-800">Gestión de Usuarios</h1>
                 </div>
-                <button
-                    onClick={() => setShowTemplates(!showTemplates)}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition border border-gray-300 shadow-sm text-sm"
-                >
-                    {showTemplates ? 'Ocultar Plantillas' : 'Plantillas de Bloqueo'}
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowNewUserModal(true)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition shadow-sm text-sm flex items-center gap-2"
+                    >
+                        <Plus className="h-4 w-4" /> Nuevo Agente
+                    </button>
+                    <button
+                        onClick={() => setShowTemplates(!showTemplates)}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition border border-gray-300 shadow-sm text-sm"
+                    >
+                        {showTemplates ? 'Ocultar Plantillas' : 'Plantillas de Bloqueo'}
+                    </button>
+                </div>
             </div>
 
             {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    {error}
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 flex justify-between">
+                    <span>{error}</span>
+                    <button onClick={() => setError('')}><X className="h-4 w-4" /></button>
+                </div>
+            )}
+
+            {/* New User Modal */}
+            {showNewUserModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Agente</h2>
+                            <button onClick={() => setShowNewUserModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">
+                            <form id="new-user-form" onSubmit={handleCreateUser} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico (Login)</label>
+                                    <input type="email" required value={newUserForm.email} onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="agente@empresa.com" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña de Acceso</label>
+                                    <input type="password" required minLength={6} value={newUserForm.password} onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="Mínimo 6 caracteres" />
+                                </div>
+                                <div className="pt-4 border-t border-gray-100">
+                                    <h3 className="text-sm font-bold text-gray-800 mb-3">Permisos de la Sub-Cuenta</h3>
+
+                                    <div className="space-y-3">
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <div className="relative">
+                                                <input type="checkbox" className="sr-only" checked={newUserForm.metricsEnabled} onChange={e => setNewUserForm({ ...newUserForm, metricsEnabled: e.target.checked })} />
+                                                <div className={`block w-10 h-6 rounded-full transition-colors ${newUserForm.metricsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${newUserForm.metricsEnabled ? 'transform translate-x-4' : ''}`}></div>
+                                            </div>
+                                            <span className="text-sm font-medium text-gray-700">Visualizar Métricas de Rendimiento</span>
+                                        </label>
+
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <div className="relative">
+                                                <input type="checkbox" className="sr-only" checked={newUserForm.canEditTemplates} onChange={e => setNewUserForm({ ...newUserForm, canEditTemplates: e.target.checked })} />
+                                                <div className={`block w-10 h-6 rounded-full transition-colors ${newUserForm.canEditTemplates ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+                                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${newUserForm.canEditTemplates ? 'transform translate-x-4' : ''}`}></div>
+                                            </div>
+                                            <span className="text-sm font-medium text-gray-700">Gestionar Plantillas de Mensajes</span>
+                                        </label>
+
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <div className="relative">
+                                                <input type="checkbox" className="sr-only" checked={newUserForm.canExportData} onChange={e => setNewUserForm({ ...newUserForm, canExportData: e.target.checked })} />
+                                                <div className={`block w-10 h-6 rounded-full transition-colors ${newUserForm.canExportData ? 'bg-green-600' : 'bg-gray-300'}`}></div>
+                                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${newUserForm.canExportData ? 'transform translate-x-4' : ''}`}></div>
+                                            </div>
+                                            <span className="text-sm font-medium text-gray-700">Exportar Reportes (Excel/PDF)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 mb-0 flex justify-end gap-3">
+                            <button type="button" onClick={() => setShowNewUserModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">Cancelar</button>
+                            <button type="submit" form="new-user-form" disabled={creatingUser} className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2">
+                                {creatingUser ? 'Procesando...' : <><Save className="h-4 w-4" /> Guardar Agente</>}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -340,6 +467,22 @@ export default function AdminUsersPage() {
                                                     </div>
                                                     Acceso a Dashboard de Métricas
                                                 </label>
+                                                <label className="flex items-center gap-2 cursor-pointer mt-1 text-sm text-gray-700">
+                                                    <div className="relative">
+                                                        <input type="checkbox" className="sr-only" checked={editForm.canEditTemplates} onChange={(e) => setEditForm({ ...editForm, canEditTemplates: e.target.checked })} />
+                                                        <div className={`block w-10 h-6 rounded-full transition-colors ${editForm.canEditTemplates ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+                                                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${editForm.canEditTemplates ? 'transform translate-x-4' : ''}`}></div>
+                                                    </div>
+                                                    Gestión de Plantillas
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer mt-1 text-sm text-gray-700">
+                                                    <div className="relative">
+                                                        <input type="checkbox" className="sr-only" checked={editForm.canExportData} onChange={(e) => setEditForm({ ...editForm, canExportData: e.target.checked })} />
+                                                        <div className={`block w-10 h-6 rounded-full transition-colors ${editForm.canExportData ? 'bg-green-600' : 'bg-gray-300'}`}></div>
+                                                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${editForm.canExportData ? 'transform translate-x-4' : ''}`}></div>
+                                                    </div>
+                                                    Permisos de Exportación
+                                                </label>
                                             </div>
                                         ) : (
                                             <div className="text-sm text-gray-500">
@@ -354,6 +497,11 @@ export default function AdminUsersPage() {
                                                 <div className="flex items-center gap-1">
                                                     <span className={`h-2 w-2 rounded-full ${user.metricsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
                                                     <span>Métricas {user.metricsEnabled ? 'Activadas' : 'Desactivadas'}</span>
+                                                </div>
+                                                <div className="flex gap-2 mt-2">
+                                                    {user.canEditTemplates && <span className="bg-orange-100 text-orange-800 text-[10px] px-2 py-0.5 rounded-full font-semibold">Plantillas</span>}
+                                                    {user.canExportData && <span className="bg-green-100 text-green-800 text-[10px] px-2 py-0.5 rounded-full font-semibold">Exportador</span>}
+                                                    {/* We skip canManageUsers as long as role === ADMIN handles it broadly */}
                                                 </div>
                                             </div>
                                         )}

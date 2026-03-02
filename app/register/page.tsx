@@ -12,6 +12,10 @@ export default function RegisterPage() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
+    if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');

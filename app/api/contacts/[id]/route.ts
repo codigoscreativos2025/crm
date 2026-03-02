@@ -9,10 +9,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     try {
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         const contact = await prisma.contact.findUnique({
             where: {
                 id: parseInt(params.id),
-                userId: parseInt(session.user.id),
+                userId: ownerId,
             },
             include: {
                 stage: true
@@ -38,6 +45,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const contactId = params.id;
 
     try {
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { aiDeactivationMinutes: true, parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         const body = await req.json();
         const { stageId, name, disableAI } = body;
 
@@ -52,8 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         if (disableAI !== undefined) {
             if (disableAI) {
-                const user = await prisma.user.findUnique({ where: { id: parseInt(session.user.id) } });
-                const minutes = user?.aiDeactivationMinutes || 60;
+                const minutes = currentUser?.aiDeactivationMinutes || 60;
                 updateData.aiDisabledUntil = new Date(Date.now() + minutes * 60000);
             } else {
                 updateData.aiDisabledUntil = null;
@@ -63,13 +76,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const contact = await prisma.contact.update({
             where: {
                 id: parseInt(contactId),
-                userId: parseInt(session.user.id), // Ensure ownership
+                userId: ownerId, // Ensure ownership via parent ID
             },
             data: updateData,
         });
 
         return NextResponse.json(contact);
     } catch (error) {
+        console.error("Error al actualizar contacto:", error);
         return NextResponse.json({ error: "Error al actualizar contacto" }, { status: 500 });
     }
 }
@@ -84,9 +98,15 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         const contactId = parseInt(params.id);
         const userId = parseInt(session.user.id);
 
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         // Verify ownership
         const contact = await prisma.contact.findFirst({
-            where: { id: contactId, userId },
+            where: { id: contactId, userId: ownerId },
         });
 
         if (!contact) {

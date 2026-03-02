@@ -10,9 +10,17 @@ export async function GET() {
     }
 
     try {
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+
+        const ownerId = currentUser?.parentId || userId;
+
         const contacts = await prisma.contact.findMany({
             where: {
-                userId: parseInt(session.user.id),
+                userId: ownerId,
             },
             include: {
                 messages: {

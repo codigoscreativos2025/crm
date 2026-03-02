@@ -19,13 +19,13 @@ export async function GET(req: NextRequest) {
     try {
         const userId = parseInt(session.user.id);
 
-        // Check if user is admin
-        const user = await prisma.user.findUnique({
+        const currentUser = await prisma.user.findUnique({
             where: { id: userId },
-            select: { role: true }
+            select: { parentId: true, role: true }
         });
+        const ownerId = currentUser?.parentId || userId;
 
-        // Verify contact belongs to user OR user is ADMIN
+        // Verify contact belongs to tenant OR user is ADMIN
         const contact = await prisma.contact.findUnique({
             where: {
                 id: parseInt(contactId),
@@ -36,8 +36,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
         }
 
-        // Authorization check: Must be Owner OR Admin
-        if (contact.userId !== userId && user?.role !== 'ADMIN') {
+        // Authorization check: Must be Owner/Tenant Agent OR Admin
+        if (contact.userId !== ownerId && currentUser?.role !== 'ADMIN') {
             return NextResponse.json({ error: "No autorizado para ver este chat" }, { status: 403 });
         }
 
@@ -72,11 +72,18 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
         }
 
-        // Verify contact
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
+        // Verify contact belongs to tenant
         const contact = await prisma.contact.findUnique({
             where: {
                 id: parseInt(contactId),
-                userId: parseInt(session.user.id),
+                userId: ownerId,
             },
         });
 
@@ -153,6 +160,13 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         if (messageId) {
             // Delete single message
             const message = await prisma.message.findUnique({
@@ -162,8 +176,8 @@ export async function DELETE(req: NextRequest) {
 
             if (!message) return NextResponse.json({ error: "Mensaje no encontrado" }, { status: 404 });
 
-            // Verify ownership
-            if (message.contact.userId !== parseInt(session.user.id)) {
+            // Verify ownership against tenant
+            if (message.contact.userId !== ownerId) {
                 return NextResponse.json({ error: "No autorizado" }, { status: 403 });
             }
 
@@ -178,7 +192,7 @@ export async function DELETE(req: NextRequest) {
             const contact = await prisma.contact.findFirst({
                 where: {
                     id: parseInt(contactId),
-                    userId: parseInt(session.user.id)
+                    userId: ownerId
                 }
             });
 

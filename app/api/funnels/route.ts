@@ -9,8 +9,15 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         const funnels = await prisma.funnel.findMany({
-            where: { userId: parseInt(session.user.id) },
+            where: { userId: ownerId },
             include: { stages: { orderBy: { order: 'asc' } } }
         });
         return NextResponse.json(funnels);
@@ -27,6 +34,13 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         const { name } = await req.json();
         if (!name?.trim()) {
             return NextResponse.json({ error: "Nombre requerido" }, { status: 400 });
@@ -35,7 +49,7 @@ export async function POST(req: NextRequest) {
         const funnel = await prisma.funnel.create({
             data: {
                 name: name.trim(),
-                userId: parseInt(session.user.id),
+                userId: ownerId, // Scope creation to the organization
                 stages: {
                     create: [
                         { name: "Nuevo", order: 1 },

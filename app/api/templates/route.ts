@@ -10,8 +10,14 @@ export async function GET(req: NextRequest) {
 
     try {
         const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = currentUser?.parentId || userId;
+
         const templates = await prisma.messageTemplate.findMany({
-            where: { userId },
+            where: { userId: ownerId },
             orderBy: { createdAt: 'desc' }
         });
         return NextResponse.json(templates);
@@ -29,6 +35,18 @@ export async function POST(req: NextRequest) {
 
     try {
         const userId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true, canEditTemplates: true, role: true }
+        });
+
+        // Verify if agent has permissions to create templates
+        if (currentUser?.role !== 'ADMIN' && !currentUser?.canEditTemplates) {
+            return NextResponse.json({ error: "No tienes permiso para gestionar plantillas" }, { status: 403 });
+        }
+
+        const ownerId = currentUser?.parentId || userId;
+
         const { name, content } = await req.json();
 
         if (!name || !content) {
@@ -39,7 +57,7 @@ export async function POST(req: NextRequest) {
             data: {
                 name,
                 content,
-                userId
+                userId: ownerId
             }
         });
 
