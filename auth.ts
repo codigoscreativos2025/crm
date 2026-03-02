@@ -45,13 +45,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         throw new Error(user.disabledMessage || "Cuenta desactivada por el administrador.");
                     }
 
+                    if (user.parentId) {
+                        const parent = await prisma.user.findUnique({
+                            where: { id: user.parentId },
+                            select: { isActive: true, disabledMessage: true }
+                        });
+                        if (parent && !parent.isActive) {
+                            throw new Error(parent.disabledMessage || "La cuenta principal ha sido desactivada.");
+                        }
+                    }
+
                     // Return user object with their profile data
                     return {
                         ...user,
                         id: user.id.toString(),
                     };
-                } catch (error) {
-                    return null;
+                } catch (error: any) {
+                    console.error("Auth error:", error.message);
+                    throw new Error(error.message || "Error al iniciar sesión");
                 }
             },
         }),

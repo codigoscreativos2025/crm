@@ -22,7 +22,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 userId: ownerId,
             },
             include: {
-                stage: true
+                stage: true,
+                tags: true
             }
         });
 

@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
                                     }
                                 },
                                 messages: {
-                                    select: { timestamp: true, direction: true },
+                                    select: { timestamp: true, direction: true, isFromIA: true },
                                     orderBy: { timestamp: 'asc' }
                                 }
                             }
@@ -125,15 +125,38 @@ export async function GET(req: NextRequest) {
                 let stageTotalResponseTime = 0;
                 let responsePairsCount = 0;
                 let stageTotalRetentionTime = 0;
+                let stageIAMessages = 0;
+                let stageCRMMessages = 0;
+                let stageTotalConversationTime = 0;
+                let stageConversationCount = 0;
+                const stagePeakHoursArray = new Array(24).fill(0);
 
                 stage.contacts.forEach((contact: any) => {
                     // Retention time: Time since the contact was last updated (approximate time stuck in stage)
                     const retentionMs = now.getTime() - new Date(contact.updatedAt).getTime();
                     stageTotalRetentionTime += retentionMs;
 
-                    // Response time: Time between inbound message and the next outbound message
                     let lastInboundTime: Date | null = null;
+                    let firstMessageTime: Date | null = null;
+                    let lastMessageTime: Date | null = null;
+
                     contact.messages.forEach((msg: any) => {
+                        const msgTime = new Date(msg.timestamp);
+
+                        // Stage Level Peak Hours
+                        stagePeakHoursArray[msgTime.getHours()]++;
+
+                        // IA vs CRM Counts
+                        if (msg.direction === 'outbound') {
+                            if (msg.isFromIA) stageIAMessages++;
+                            else stageCRMMessages++;
+                        }
+
+                        // Conversation Duration Span
+                        if (!firstMessageTime) firstMessageTime = msgTime;
+                        lastMessageTime = msgTime;
+
+                        // Response time: Time between inbound message and the next outbound message
                         if (msg.direction === 'inbound') {
                             if (!lastInboundTime) lastInboundTime = new Date(msg.timestamp);
                         } else if (msg.direction === 'outbound' && lastInboundTime) {
@@ -146,11 +169,19 @@ export async function GET(req: NextRequest) {
                             lastInboundTime = null; // Reset to look for next inbound
                         }
                     });
+
+                    // Add Contact's overall Conversation Duration
+                    if (firstMessageTime !== null && lastMessageTime !== null && (firstMessageTime as Date).getTime() !== (lastMessageTime as Date).getTime()) {
+                        stageTotalConversationTime += ((lastMessageTime as Date).getTime() - (firstMessageTime as Date).getTime());
+                        stageConversationCount++;
+                    }
                 });
 
                 // Calculate averages in Minutes
                 const avgMinsRes = responsePairsCount > 0 ? (stageTotalResponseTime / responsePairsCount) / (1000 * 60) : 0;
                 const avgDaysRetention = count > 0 ? (stageTotalRetentionTime / count) / (1000 * 60 * 60 * 24) : 0;
+                const avgConversationLengthMins = stageConversationCount > 0 ? (stageTotalConversationTime / stageConversationCount) / (1000 * 60) : 0;
+                const peakHoursMap = stagePeakHoursArray.map((c, hour) => ({ hour: `${hour.toString().padStart(2, '0')}:00`, count: c }));
 
                 return {
                     id: stage.id,
@@ -158,7 +189,11 @@ export async function GET(req: NextRequest) {
                     count: count,
                     unansweredCount: unanswered,
                     avgResponseTimeMins: Math.round(avgMinsRes),
-                    avgTimeInStageDays: parseFloat(avgDaysRetention.toFixed(1))
+                    avgTimeInStageDays: parseFloat(avgDaysRetention.toFixed(1)),
+                    avgConversationLengthMins: Math.round(avgConversationLengthMins),
+                    iaMessages: stageIAMessages,
+                    crmMessages: stageCRMMessages,
+                    stagePeakHours: peakHoursMap
                 };
             });
             return {
@@ -201,13 +236,28 @@ export async function GET(req: NextRequest) {
             time: m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }));
 
+        // Global Math for IA vs CRM and Conversations Length
+        const globalIAMessages = await prisma.message.count({ where: { contact: { userId: ownerId }, direction: 'outbound', isFromIA: true } });
+        const globalCRMMessages = await prisma.message.count({ where: { contact: { userId: ownerId }, direction: 'outbound', isFromIA: false } });
+
+        let totalGlobalConversationTime = 0;
+        let globalConversationCount = 0;
+        funnelStats.forEach((f: any) => f.stages.forEach((s: any) => {
+            totalGlobalConversationTime += s.avgConversationLengthMins * s.count;
+            globalConversationCount += s.count;
+        }));
+        const globalAvgConversationLengthMins = globalConversationCount > 0 ? Math.round(totalGlobalConversationTime / globalConversationCount) : 0;
+
         return NextResponse.json({
             kpis: {
                 totalLeads,
                 leadsThisMonth,
                 messagesThisMonth,
                 unrepliedMessages,
-                newLeadsToday
+                newLeadsToday,
+                globalAvgConversationLengthMins,
+                globalIAMessages,
+                globalCRMMessages
             },
             leadsTrend,
             channelPerformance: [],

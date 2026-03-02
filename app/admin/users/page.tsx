@@ -42,7 +42,7 @@ export default function AdminUsersPage() {
     const [showNewUserModal, setShowNewUserModal] = useState(false);
     const [newUserForm, setNewUserForm] = useState({
         username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
-        canManageUsers: false, canEditTemplates: false, canExportData: false
+        canManageUsers: false, canEditTemplates: false, canExportData: false, parentId: ''
     });
     const [creatingUser, setCreatingUser] = useState(false);
 
@@ -188,17 +188,22 @@ export default function AdminUsersPage() {
         setError('');
 
         try {
+            const payload = {
+                ...newUserForm,
+                parentId: newUserForm.parentId ? parseInt(newUserForm.parentId) : null
+            };
+
             const res = await fetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newUserForm)
+                body: JSON.stringify(payload)
             });
 
             if (res.ok) {
                 setShowNewUserModal(false);
                 setNewUserForm({
                     username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
-                    canManageUsers: false, canEditTemplates: false, canExportData: false
+                    canManageUsers: false, canEditTemplates: false, canExportData: false, parentId: ''
                 });
                 fetchUsers();
             } else {
@@ -265,6 +270,19 @@ export default function AdminUsersPage() {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de Usuario (Para logueo)</label>
                                     <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({ ...newUserForm, username: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="ej. analista01" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Padre (Empresa Asociada)</label>
+                                    <select
+                                        value={newUserForm.parentId}
+                                        onChange={e => setNewUserForm({ ...newUserForm, parentId: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500"
+                                    >
+                                        <option value="">Cuenta Propia (Ninguna)</option>
+                                        {users.filter(u => u.email).map(u => (
+                                            <option key={u.id} value={u.id}>{u.email}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña de Acceso</label>

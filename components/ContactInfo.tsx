@@ -1,6 +1,7 @@
 'use client';
 
-import { X, Clock, Phone, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Clock, Phone, Tag as TagIcon, Plus } from 'lucide-react';
 import FunnelSelector from './FunnelSelector';
 
 interface Contact {
@@ -8,6 +9,7 @@ interface Contact {
     name: string | null;
     phone: string;
     stageId: number | null;
+    tags?: { id: number; name: string; color: string }[];
 }
 
 interface ContactInfoProps {
@@ -17,6 +19,78 @@ interface ContactInfoProps {
 }
 
 export default function ContactInfo({ contact, onClose, lastMessageTime }: ContactInfoProps) {
+    const [availableTags, setAvailableTags] = useState<{ id: number, name: string, color: string }[]>([]);
+    const [contactTags, setContactTags] = useState<{ id: number, name: string, color: string }[]>(contact.tags || []);
+    const [showTagDropdown, setShowTagDropdown] = useState(false);
+    const [newTagName, setNewTagName] = useState('');
+
+    useEffect(() => {
+        setContactTags(contact.tags || []);
+    }, [contact]);
+
+    useEffect(() => {
+        fetch('/api/tags')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setAvailableTags(data);
+            })
+            .catch(console.error);
+    }, []);
+
+    const handleAddTag = async (tagId: number) => {
+        if (contactTags.find(t => t.id === tagId)) return;
+        try {
+            const res = await fetch(`/api/contacts/${contact.id}/tags`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagId })
+            });
+            if (res.ok) {
+                const updatedTags = await res.json();
+                setContactTags(updatedTags);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+        setShowTagDropdown(false);
+        setNewTagName('');
+    };
+
+    const handleCreateTag = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newTagName.trim()) return;
+        try {
+            // First create the tag
+            const createRes = await fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newTagName.trim(), color: '#8b5cf6' }) // Default purple
+            });
+            if (createRes.ok) {
+                const newTag = await createRes.json();
+                setAvailableTags([...availableTags, newTag]);
+                // Then assign it
+                handleAddTag(newTag.id);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleRemoveTag = async (tagId: number) => {
+        try {
+            const res = await fetch(`/api/contacts/${contact.id}/tags?tagId=${tagId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                const updatedTags = await res.json();
+                setContactTags(updatedTags);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     // 24h Window Logic
     const calculateTimeLeft = () => {
         if (!lastMessageTime) return 0;
@@ -87,7 +161,60 @@ export default function ContactInfo({ contact, onClose, lastMessageTime }: Conta
                     </div>
                 </div>
 
-                <div>
+                {/* Tags Section */}
+                <div className="mt-6 border-t border-gray-100 pt-6">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                        <TagIcon className="h-3.5 w-3.5" />
+                        Etiquetas
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {contactTags.map(tag => (
+                            <span key={tag.id} style={{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }} className="px-2.5 py-1 rounded-md text-xs font-semibold border flex items-center gap-1.5">
+                                {tag.name}
+                                <button onClick={() => handleRemoveTag(tag.id)} className="hover:opacity-60 transition-opacity">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+
+                    <div className="relative">
+                        {showTagDropdown ? (
+                            <div className="absolute top-0 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-2">
+                                <form onSubmit={handleCreateTag} className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        value={newTagName}
+                                        onChange={e => setNewTagName(e.target.value)}
+                                        placeholder="Nueva etiqueta..."
+                                        className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 outline-none focus:border-whatsapp-green"
+                                    />
+                                    <button type="submit" className="bg-whatsapp-green text-white px-2 py-1 rounded text-xs font-bold">Crear</button>
+                                </form>
+                                <div className="max-h-40 overflow-y-auto space-y-1">
+                                    {availableTags.filter(t => t.name.toLowerCase().includes(newTagName.toLowerCase())).map(tag => (
+                                        <button
+                                            key={tag.id}
+                                            onClick={() => handleAddTag(tag.id)}
+                                            className="w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-center gap-2"
+                                        >
+                                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }}></div>
+                                            {tag.name}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button onClick={() => setShowTagDropdown(false)} className="w-full mt-2 text-center text-xs text-gray-400 py-1 hover:text-gray-600">Cancelar</button>
+                            </div>
+                        ) : (
+                            <button onClick={() => setShowTagDropdown(true)} className="flex items-center gap-1 text-xs font-bold text-blue-500 bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 rounded-md">
+                                <Plus className="h-3.5 w-3.5" /> Agregar Etiqueta
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-6 border-t border-gray-100 pt-6">
                     <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Teléfono</label>
                     <div className="flex items-center gap-2 text-gray-700">
                         <Phone className="h-4 w-4" />

@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
                 status: "sent",
                 timestamp: timestamp ? (typeof timestamp === 'number' && timestamp < 10000000000 ? new Date(timestamp * 1000) : new Date(timestamp)) : new Date(),
                 contactId: contact.id,
+                isFromIA: true,
             },
         });
 

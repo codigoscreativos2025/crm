@@ -10,7 +10,7 @@ import EscNavHandler from '@/components/EscNavHandler';
 export default function MetricsDashboard() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [selectedStage, setSelectedStage] = useState<{ id: number; name: string } | null>(null);
+    const [selectedStage, setSelectedStage] = useState<{ id: number; name: string; peakHours: any[] } | null>(null);
     const [stageLeads, setStageLeads] = useState<any[]>([]);
     const [stageLoading, setStageLoading] = useState(false);
     const [stageSearch, setStageSearch] = useState('');
@@ -38,8 +38,8 @@ export default function MetricsDashboard() {
         return () => clearInterval(intervalId);
     }, [router]);
 
-    const handleStageClick = async (stageId: number, stageName: string) => {
-        setSelectedStage({ id: stageId, name: stageName });
+    const handleStageClick = async (stageId: number, stageName: string, peakHoursMap: any[]) => {
+        setSelectedStage({ id: stageId, name: stageName, peakHours: peakHoursMap });
         setStageLoading(true);
         try {
             const res = await fetch(`/api/contacts`);
@@ -108,63 +108,90 @@ export default function MetricsDashboard() {
                         </div>
 
                         {/* KPI Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                             {/* Card 1 */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36 relative overflow-hidden">
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36 relative overflow-hidden">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Leads</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Total Leads</span>
                                     <div className="p-1.5 bg-green-50 text-green-600 rounded-md">
                                         <ArrowUpRight className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
                                     <div className="flex items-baseline gap-2">
-                                        <h3 className="text-4xl font-bold text-gray-900">{data.kpis.totalLeads.toLocaleString()}</h3>
-                                        <span className="text-sm font-semibold text-whatsapp-green">+{data.kpis.newLeadsToday} hoy</span>
+                                        <h3 className="text-3xl font-bold text-gray-900">{data.kpis.totalLeads.toLocaleString()}</h3>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-1">{data.kpis.leadsThisMonth} creados este mes</p>
+                                    <p className="text-[10px] text-whatsapp-green font-bold mt-1">+{data.kpis.newLeadsToday} hoy</p>
                                 </div>
                             </div>
 
                             {/* Card 2 */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Diálogos Activos</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Diálogos Activos</span>
                                     <div className="p-1.5 bg-purple-50 text-purple-600 rounded-md">
                                         <MessageSquare className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-4xl font-bold text-purple-600">{data.kpis.messagesThisMonth.toLocaleString()}</h3>
-                                    <p className="text-xs text-green-500 font-medium mt-1">+{data.kpis.messagesThisMonth} vs mes pasado</p>
+                                    <h3 className="text-3xl font-bold text-purple-600">{data.kpis.messagesThisMonth.toLocaleString()}</h3>
+                                    <p className="text-[10px] text-green-500 font-medium mt-1">+{data.kpis.messagesThisMonth} mes actual</p>
                                 </div>
                             </div>
 
                             {/* Card 3 */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Chats sin respuesta</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Sin respuesta</span>
                                     <div className="p-1.5 bg-red-50 text-red-500 rounded-md">
                                         <AlertTriangle className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-4xl font-bold text-gray-900">{data.kpis.unrepliedMessages.toLocaleString()}</h3>
-                                    <p className="text-xs text-red-400 font-medium mt-1">Atención requerida</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">{data.kpis.unrepliedMessages.toLocaleString()}</h3>
+                                    <p className="text-[10px] text-red-400 font-medium mt-1">Atención requerida</p>
                                 </div>
                             </div>
 
-                            {/* Card 4 */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
+                            {/* Card 4 - Duración Chat */}
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tiempo de Resp. Promedio</span>
-                                    <div className="p-1.5 bg-blue-50 text-blue-500 rounded-md">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Duración Chat (Prom.)</span>
+                                    <div className="p-1.5 bg-orange-50 text-orange-500 rounded-md">
                                         <Clock className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-4xl font-bold text-green-500">2m 14s</h3>
-                                    <p className="text-xs text-gray-400 mt-1">Aceptable</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">{data.kpis.globalAvgConversationLengthMins}m</h3>
+                                    <p className="text-[10px] text-gray-400 mt-1">Tiempo general</p>
+                                </div>
+                            </div>
+
+                            {/* Card 5 - Respuestas IA */}
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
+                                <div className="flex justify-between items-start">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Respuestas IA</span>
+                                    <div className="p-1.5 bg-blue-50 text-blue-500 rounded-md">
+                                        <MessageSquare className="h-4 w-4" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="text-3xl font-bold text-blue-600">{data.kpis.globalIAMessages.toLocaleString()}</h3>
+                                    <p className="text-[10px] text-gray-400 mt-1">Vía Automatización</p>
+                                </div>
+                            </div>
+
+                            {/* Card 6 - Respuestas CRM */}
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
+                                <div className="flex justify-between items-start">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Respuestas Agente</span>
+                                    <div className="p-1.5 bg-indigo-50 text-indigo-500 rounded-md">
+                                        <MessageSquare className="h-4 w-4" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="text-3xl font-bold text-indigo-600">{data.kpis.globalCRMMessages.toLocaleString()}</h3>
+                                    <p className="text-[10px] text-gray-400 mt-1">Agentes Humanos</p>
                                 </div>
                             </div>
                         </div>
@@ -310,7 +337,7 @@ export default function MetricsDashboard() {
                                                     {funnel.stages.map((stage: any, sIdx: number) => (
                                                         <div
                                                             key={sIdx}
-                                                            onClick={() => handleStageClick(stage.id, stage.name)}
+                                                            onClick={() => handleStageClick(stage.id, stage.name, stage.stagePeakHours)}
                                                             className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col cursor-pointer hover:border-whatsapp-green transition-colors"
                                                         >
                                                             <div className="flex justify-between items-center">
@@ -400,8 +427,8 @@ export default function MetricsDashboard() {
                                             <X className="h-5 w-5" />
                                         </button>
                                     </div>
-                                    <div className="p-4 border-b border-gray-100 bg-gray-50">
-                                        <div className="relative max-w-md">
+                                    <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <div className="relative w-full md:w-1/3">
                                             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                             <input
                                                 type="text"
@@ -410,6 +437,17 @@ export default function MetricsDashboard() {
                                                 value={stageSearch}
                                                 onChange={(e) => setStageSearch(e.target.value)}
                                             />
+                                        </div>
+                                        <div className="w-full md:w-2/3 h-[70px] flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Actividad:</span>
+                                            <div className="flex-1 h-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={selectedStage.peakHours}>
+                                                        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '4px', border: 'none', fontSize: '12px', padding: '4px 8px' }} />
+                                                        <Bar dataKey="count" name="Msgs" fill="#8b5cf6" radius={[2, 2, 0, 0]} maxBarSize={15} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="overflow-y-auto p-0 flex-1">

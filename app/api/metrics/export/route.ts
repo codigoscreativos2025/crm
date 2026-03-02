@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import * as xlsx from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -67,8 +67,7 @@ export async function GET(req: NextRequest) {
                 tableRows.push(rowData);
             });
 
-            // @ts-ignore
-            doc.autoTable({
+            autoTable(doc, {
                 head: [tableColumn],
                 body: tableRows,
                 startY: 20,

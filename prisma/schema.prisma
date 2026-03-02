@@ -42,6 +42,7 @@ model User {
   contacts         Contact[]
   funnels          Funnel[]
   messageTemplates MessageTemplate[]
+  tags             Tag[]
 }
 
 model AdminMessageTemplate {
@@ -92,6 +93,7 @@ model Contact {
   messages        Message[]
   stageId         Int?
   stage           Stage?    @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  tags            Tag[]
 
   @@unique([userId, phone])
 }
@@ -108,4 +110,18 @@ model Message {
   isReadByAgent Boolean  @default(false)
   contactId     Int
   contact       Contact  @relation(fields: [contactId], references: [id])
+  isFromIA      Boolean  @default(false)
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String
+  color     String    @default("#3b82f6") // Default blue
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  contacts  Contact[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([userId, name])
 }

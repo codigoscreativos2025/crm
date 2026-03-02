@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { username, password, role, isActive, metricsEnabled, canManageUsers, canEditTemplates, canExportData } = body;
+        const { username, password, role, isActive, metricsEnabled, canManageUsers, canEditTemplates, canExportData, parentId } = body;
 
         if (!username || !password) {
             return NextResponse.json({ error: "Usuario y contraseña son obligatorios" }, { status: 400 });
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
                 canManageUsers: canManageUsers ?? false,
                 canEditTemplates: canEditTemplates ?? false,
                 canExportData: canExportData ?? false,
-                parentId: userId // Assign the superadmin as the parent owner
+                parentId: parentId !== null ? parentId : userId // Assign the superadmin as the parent owner if null
             }
         });
 
