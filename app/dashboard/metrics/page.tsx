@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ArrowLeft, MessageSquare, Clock, AlertTriangle, ArrowUpRight, Search } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Clock, AlertTriangle, ArrowUpRight, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EscNavHandler from '@/components/EscNavHandler';
@@ -10,6 +10,10 @@ import EscNavHandler from '@/components/EscNavHandler';
 export default function MetricsDashboard() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [selectedStage, setSelectedStage] = useState<{ id: number; name: string } | null>(null);
+    const [stageLeads, setStageLeads] = useState<any[]>([]);
+    const [stageLoading, setStageLoading] = useState(false);
+    const [stageSearch, setStageSearch] = useState('');
     const router = useRouter();
 
     useEffect(() => {
@@ -30,7 +34,24 @@ export default function MetricsDashboard() {
         };
 
         fetchMetrics();
+        const intervalId = setInterval(fetchMetrics, 10000);
+        return () => clearInterval(intervalId);
     }, [router]);
+
+    const handleStageClick = async (stageId: number, stageName: string) => {
+        setSelectedStage({ id: stageId, name: stageName });
+        setStageLoading(true);
+        try {
+            const res = await fetch(`/api/contacts`);
+            const allContacts = await res.json();
+            const filtered = allContacts.filter((c: any) => c.stageId === stageId);
+            setStageLeads(filtered);
+        } catch (err) {
+            console.error("Error fetching stage leads", err);
+        } finally {
+            setStageLoading(false);
+        }
+    };
 
     if (loading || !data) {
         return (
@@ -136,47 +157,22 @@ export default function MetricsDashboard() {
                     {/* Performance & Trends */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-bold text-gray-800">Rendimiento y Tendencia de Canales</h3>
-                            <div className="flex gap-2">
-                                <button className="px-3 py-1 bg-whatsapp-green text-white text-xs font-bold rounded-full">Mes</button>
-                            </div>
+                            <h3 className="text-lg font-bold text-gray-800">Horas Pico de Actividad (Últimos 7 Días)</h3>
                         </div>
 
-                        {/* Channel Bars */}
-                        <div className="space-y-4 mb-8">
-                            {data.channelPerformance.map((channel: any, idx: number) => (
-                                <div key={idx}>
-                                    <div className="flex justify-between text-sm mb-1">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: channel.color }}></div>
-                                            <span className="text-gray-700 font-medium">{channel.name}</span>
-                                        </div>
-                                        <span className="font-bold text-gray-900" style={{ color: channel.color }}>{channel.value.toLocaleString()}</span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                        <div className="h-1.5 rounded-full" style={{ width: `${Math.min((channel.value / data.kpis.totalLeads) * 100, 100)}%`, backgroundColor: channel.color }}></div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="h-64 mt-4 relative">
-                            <div className="absolute top-2 left-2 z-10">
-                                <span className="text-sm text-gray-500">Crecimiento de Leads</span>
-                                <h4 className="text-xl font-bold">+12.5%</h4>
-                            </div>
+                        <div className="h-[250px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={data.leadsTrend}>
+                                <AreaChart data={data.peakHours}>
                                     <defs>
-                                        <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
+                                        <linearGradient id="colorPeak" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
                                             <stop offset="95%" stopColor="#25D366" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
+                                    <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
                                     <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                    <Area type="monotone" dataKey="leads" stroke="#25D366" strokeWidth={3} fillOpacity={1} fill="url(#colorLeads)" />
+                                    <Area type="monotone" dataKey="count" stroke="#25D366" strokeWidth={3} fillOpacity={1} fill="url(#colorPeak)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
@@ -251,14 +247,20 @@ export default function MetricsDashboard() {
                                     </div>
                                     <div className="space-y-3">
                                         {funnel.stages.map((stage: any, sIdx: number) => (
-                                            <div key={sIdx} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col">
+                                            <div
+                                                key={sIdx}
+                                                onClick={() => handleStageClick(stage.id, stage.name)}
+                                                className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col cursor-pointer hover:border-whatsapp-green transition-colors"
+                                            >
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-sm font-medium text-gray-700">{stage.name}</span>
                                                     <span className="text-sm font-bold text-gray-900">{stage.count}</span>
                                                 </div>
-                                                <div className="text-xs text-gray-400 mt-1 flex items-center">
-                                                    <Clock className="w-3 h-3 mr-1" />
-                                                    Promedio: {stage.avgDaysRes} {stage.avgDaysRes === 1 ? 'hora' : 'horas'}
+                                                <div className="text-xs text-gray-400 mt-1 flex justify-between items-center">
+                                                    <div>
+                                                        <Clock className="w-3 h-3 inline mr-1" />
+                                                        Esperando: {stage.unansweredCount}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -317,6 +319,83 @@ export default function MetricsDashboard() {
             </div>
 
             <div className="h-8"></div> {/* Spacer */}
+
+            {/* Modal de Leads por Etapa */}
+            {selectedStage && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto">
+                    <div className="bg-white max-w-4xl w-full m-4 rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Leads en: {selectedStage.name}</h2>
+                                <p className="text-sm text-gray-500 mt-1">Total: {stageLeads.length} contactos</p>
+                            </div>
+                            <button onClick={() => setSelectedStage(null)} className="text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 border-b border-gray-100 bg-gray-50">
+                            <div className="relative max-w-md">
+                                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre o teléfono..."
+                                    className="pl-9 pr-4 py-2 w-full bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-whatsapp-green transition"
+                                    value={stageSearch}
+                                    onChange={(e) => setStageSearch(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="overflow-y-auto p-0 flex-1">
+                            {stageLoading ? (
+                                <div className="p-12 text-center text-gray-500">Cargando leads...</div>
+                            ) : (
+                                <table className="w-full text-left text-sm text-gray-600">
+                                    <thead className="bg-gray-50 sticky top-0 text-xs uppercase tracking-wider text-gray-500 z-10 shadow-sm border-b border-gray-100">
+                                        <tr>
+                                            <th className="p-4 font-semibold">Contacto</th>
+                                            <th className="p-4 font-semibold">Teléfono</th>
+                                            <th className="p-4 font-semibold">Estado AI</th>
+                                            <th className="p-4 font-semibold text-right">Creado/Modificado</th>
+                                            <th className="p-4 font-semibold text-center">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {stageLeads.filter(l => (l.name || l.phone).toLowerCase().includes(stageSearch.toLowerCase())).map(lead => (
+                                            <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="p-4 font-medium text-gray-900">
+                                                    {lead.name || 'Sin Nombre'}
+                                                    {lead.unreadCount > 0 && <span className="ml-2 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{lead.unreadCount} in</span>}
+                                                </td>
+                                                <td className="p-4">{lead.phone}</td>
+                                                <td className="p-4">
+                                                    {lead.aiDisabledUntil && new Date(lead.aiDisabledUntil).getTime() > Date.now()
+                                                        ? <span className="text-red-500 bg-red-50 px-2 py-1 rounded text-xs font-semibold">Pausada</span>
+                                                        : <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-semibold">Activa</span>
+                                                    }
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-gray-900">{new Date(lead.createdAt).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-gray-400">{new Date(lead.updatedAt).toLocaleDateString()}</div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <Link href={`/dashboard/chat/${lead.id}`} className="text-whatsapp-green font-medium hover:underline text-sm flex justify-center items-center gap-1">
+                                                        <MessageSquare className="h-3 w-3" /> Chat
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {stageLeads.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="p-8 text-center text-gray-500">No hay leads en esta etapa o con esa búsqueda.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

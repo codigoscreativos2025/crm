@@ -22,13 +22,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         const targetUserId = parseInt(params.id);
         const body = await req.json();
-        const { email, password, apiKey, metricsEnabled, isActive, disabledMessage, n8nWebhookUrl } = body;
+        const { email, password, apiKey, metricsEnabled, canManageUsers, canEditTemplates, canExportData, isActive, disabledMessage, n8nWebhookUrl } = body;
 
         const updateData: any = {};
 
         if (email) updateData.email = email;
         if (apiKey) updateData.apiKey = apiKey;
         if (typeof metricsEnabled === 'boolean') updateData.metricsEnabled = metricsEnabled;
+        if (typeof canManageUsers === 'boolean') updateData.canManageUsers = canManageUsers;
+        if (typeof canEditTemplates === 'boolean') updateData.canEditTemplates = canEditTemplates;
+        if (typeof canExportData === 'boolean') updateData.canExportData = canExportData;
         if (typeof isActive === 'boolean') updateData.isActive = isActive;
         if (disabledMessage !== undefined) updateData.disabledMessage = disabledMessage;
         if (n8nWebhookUrl !== undefined) updateData.n8nWebhookUrl = n8nWebhookUrl;
@@ -62,6 +65,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                 role: true,
                 apiKey: true,
                 metricsEnabled: true,
+                canManageUsers: true,
+                canEditTemplates: true,
+                canExportData: true,
                 isActive: true,
                 disabledMessage: true,
                 n8nWebhookUrl: true,

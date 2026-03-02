@@ -79,19 +79,9 @@ export async function GET(req: NextRequest) {
             leads: daysMap[day]
         }));
 
-        // Mock Channel Performance based on reference image
-        const channelPerformance = [
-            { name: 'WhatsApp Cloud API', value: 1286, color: '#25D366' },
-            { name: 'Instagram DM', value: parseInt((totalLeads * 0.45).toString()), color: '#E1306C' },
-            { name: 'Messenger', value: parseInt((totalLeads * 0.1).toString()), color: '#0084FF' },
-            { name: 'Web Widget', value: parseInt((totalLeads * 0.05).toString()), color: '#FF7A00' },
-        ];
-
         // Lead Sources for Pie Chart
         const leadSources = [
-            { name: 'API Primaria', value: parseInt((totalLeads * 0.45).toString()), color: '#25D366' },
-            { name: 'Instagram', value: parseInt((totalLeads * 0.35).toString()), color: '#00C2A8' },
-            { name: 'Web Widget', value: parseInt((totalLeads * 0.20).toString()), color: '#4A90E2' },
+            { name: 'WhatsApp Cloud API', value: totalLeads, color: '#25D366' },
         ];
 
         // Advanced Metrics: Funnel Distribution
@@ -100,8 +90,18 @@ export async function GET(req: NextRequest) {
             include: {
                 stages: {
                     include: {
-                        _count: {
-                            select: { contacts: true }
+                        contacts: {
+                            select: {
+                                createdAt: true,
+                                updatedAt: true,
+                                _count: {
+                                    select: {
+                                        messages: {
+                                            where: { isReadByAgent: false }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -109,15 +109,43 @@ export async function GET(req: NextRequest) {
         });
 
         // Map funnel data for charts
-        const funnelStats = funnels.map((f: any) => ({
-            name: f.name,
-            totalLeads: f.stages.reduce((acc: number, stage: any) => acc + stage._count.contacts, 0),
-            stages: f.stages.map((stage: any) => ({
-                name: stage.name,
-                count: stage._count.contacts,
-                // Optional: mock time average in stage, you could compute differences over messages/updatedAt
-                avgDaysRes: Math.floor(Math.random() * 5) + 1
-            }))
+        const funnelStats = funnels.map((f: any) => {
+            let funnelTotal = 0;
+            let funnelUnanswered = 0;
+            const mappedStages = f.stages.map((stage: any) => {
+                const count = stage.contacts.length;
+                const unanswered = stage.contacts.filter((c: any) => c._count.messages > 0).length;
+                funnelTotal += count;
+                funnelUnanswered += unanswered;
+                return {
+                    id: stage.id,
+                    name: stage.name,
+                    count: count,
+                    unansweredCount: unanswered,
+                    avgDaysRes: 0 // In a real scenario, calculate from message timestamps
+                };
+            });
+            return {
+                id: f.id,
+                name: f.name,
+                totalLeads: funnelTotal,
+                totalUnanswered: funnelUnanswered,
+                stages: mappedStages
+            };
+        });
+
+        // Compute peak hours
+        const recentMessagesPeak = await prisma.message.findMany({
+            where: { contact: { userId: ownerId }, timestamp: { gte: sevenDaysAgo } },
+            select: { timestamp: true }
+        });
+        const peakHoursArray = new Array(24).fill(0);
+        recentMessagesPeak.forEach((m: any) => {
+            peakHoursArray[m.timestamp.getHours()]++;
+        });
+        const peakHours = peakHoursArray.map((count, hour) => ({
+            hour: `${hour.toString().padStart(2, '0')}:00`,
+            count
         }));
 
         // Recent Messages (Global across tenant)
@@ -146,9 +174,10 @@ export async function GET(req: NextRequest) {
                 newLeadsToday
             },
             leadsTrend,
-            channelPerformance,
+            channelPerformance: [],
             leadSources,
             funnelStats,
+            peakHours,
             recentMessages: formattedRecentMessages
         });
 

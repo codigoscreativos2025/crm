@@ -33,14 +33,15 @@ export default async function ProfilePage() {
                         <div>
                             <h2 className="text-xl font-medium text-gray-800">{user.email}</h2>
                             <p className="text-sm text-gray-500">ID: {user.id}</p>
-                            <p className="text-sm text-gray-500 font-mono mt-1 bg-gray-100 p-1 rounded inline-block">
-                                API Key: {user.apiKey}
-                            </p>
-                            {/* @ts-ignore */}
-                            {session.user.role === 'ADMIN' && (
-                                <Link href="/admin" className="ml-4 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200">
-                                    Panel Admin
-                                </Link>
+                            {user.role === 'ADMIN' && (
+                                <>
+                                    <p className="text-sm text-gray-500 font-mono mt-1 bg-gray-100 p-1 rounded inline-block">
+                                        API Key: {user.apiKey}
+                                    </p>
+                                    <Link href="/admin" className="ml-4 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200">
+                                        Panel Admin
+                                    </Link>
+                                </>
                             )}
                         </div>
                     </div>
