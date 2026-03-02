@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
             select: {
                 id: true,
                 email: true,
+                username: true,
                 role: true,
                 apiKey: true,
                 metricsEnabled: true,
@@ -68,25 +69,25 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { email, password, role, isActive, metricsEnabled, canManageUsers, canEditTemplates, canExportData } = body;
+        const { username, password, role, isActive, metricsEnabled, canManageUsers, canEditTemplates, canExportData } = body;
 
-        if (!email || !password) {
-            return NextResponse.json({ error: "Email y contraseña son obligatorios" }, { status: 400 });
+        if (!username || !password) {
+            return NextResponse.json({ error: "Usuario y contraseña son obligatorios" }, { status: 400 });
         }
 
         const existingUser = await prisma.user.findUnique({
-            where: { email }
+            where: { username }
         });
 
         if (existingUser) {
-            return NextResponse.json({ error: "El correo ya está registrado" }, { status: 400 });
+            return NextResponse.json({ error: "El nombre de usuario ya está registrado" }, { status: 400 });
         }
 
         const apiKey = `key_${Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)}`;
 
         const newUser = await prisma.user.create({
             data: {
-                email,
+                username,
                 password, // Note: Should be hashed in prod
                 role: role || 'USER',
                 apiKey,

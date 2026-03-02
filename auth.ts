@@ -22,9 +22,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 // specific logic for authorize
                 try {
-                    user = await prisma.user.findUnique({
+                    user = await prisma.user.findFirst({
                         where: {
-                            email: credentials.email as string
+                            OR: [
+                                { email: credentials.email as string },
+                                { username: credentials.email as string }
+                            ]
                         }
                     })
 

@@ -100,6 +100,10 @@ export async function GET(req: NextRequest) {
                                             where: { isReadByAgent: false }
                                         }
                                     }
+                                },
+                                messages: {
+                                    select: { timestamp: true, direction: true },
+                                    orderBy: { timestamp: 'asc' }
                                 }
                             }
                         }
@@ -117,12 +121,44 @@ export async function GET(req: NextRequest) {
                 const unanswered = stage.contacts.filter((c: any) => c._count.messages > 0).length;
                 funnelTotal += count;
                 funnelUnanswered += unanswered;
+
+                let stageTotalResponseTime = 0;
+                let responsePairsCount = 0;
+                let stageTotalRetentionTime = 0;
+
+                stage.contacts.forEach((contact: any) => {
+                    // Retention time: Time since the contact was last updated (approximate time stuck in stage)
+                    const retentionMs = now.getTime() - new Date(contact.updatedAt).getTime();
+                    stageTotalRetentionTime += retentionMs;
+
+                    // Response time: Time between inbound message and the next outbound message
+                    let lastInboundTime: Date | null = null;
+                    contact.messages.forEach((msg: any) => {
+                        if (msg.direction === 'inbound') {
+                            if (!lastInboundTime) lastInboundTime = new Date(msg.timestamp);
+                        } else if (msg.direction === 'outbound' && lastInboundTime) {
+                            const responseMs = new Date(msg.timestamp).getTime() - lastInboundTime.getTime();
+                            // Sanity check for valid response times (less than 30 days)
+                            if (responseMs >= 0 && responseMs < 30 * 24 * 60 * 60 * 1000) {
+                                stageTotalResponseTime += responseMs;
+                                responsePairsCount++;
+                            }
+                            lastInboundTime = null; // Reset to look for next inbound
+                        }
+                    });
+                });
+
+                // Calculate averages in Minutes
+                const avgMinsRes = responsePairsCount > 0 ? (stageTotalResponseTime / responsePairsCount) / (1000 * 60) : 0;
+                const avgDaysRetention = count > 0 ? (stageTotalRetentionTime / count) / (1000 * 60 * 60 * 24) : 0;
+
                 return {
                     id: stage.id,
                     name: stage.name,
                     count: count,
                     unansweredCount: unanswered,
-                    avgDaysRes: 0 // In a real scenario, calculate from message timestamps
+                    avgResponseTimeMins: Math.round(avgMinsRes),
+                    avgTimeInStageDays: parseFloat(avgDaysRetention.toFixed(1))
                 };
             });
             return {

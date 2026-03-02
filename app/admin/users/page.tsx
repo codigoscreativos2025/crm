@@ -7,7 +7,8 @@ import { Edit2, Save, X, Plus, Key, Mail, Lock, ArrowLeft, Search, Trash } from 
 
 interface User {
     id: number;
-    email: string;
+    email: string | null;
+    username: string | null;
     role: string;
     apiKey: string;
     isActive: boolean;
@@ -33,14 +34,14 @@ export default function AdminUsersPage() {
     const [error, setError] = useState('');
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [editForm, setEditForm] = useState({
-        email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
+        email: '', username: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
         disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
     });
 
     // New User Form
     const [showNewUserModal, setShowNewUserModal] = useState(false);
     const [newUserForm, setNewUserForm] = useState({
-        email: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
+        username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
         canManageUsers: false, canEditTemplates: false, canExportData: false
     });
     const [creatingUser, setCreatingUser] = useState(false);
@@ -92,7 +93,7 @@ export default function AdminUsersPage() {
     const handleEdit = (user: User) => {
         setEditingUser(user);
         setEditForm({
-            email: user.email, password: '', apiKey: user.apiKey,
+            email: user.email || '', username: user.username || '', password: '', apiKey: user.apiKey,
             metricsEnabled: user.metricsEnabled, isActive: user.isActive,
             disabledMessage: user.disabledMessage || '', n8nWebhookUrl: user.n8nWebhookUrl || '',
             canManageUsers: user.canManageUsers, canEditTemplates: user.canEditTemplates, canExportData: user.canExportData
@@ -102,7 +103,7 @@ export default function AdminUsersPage() {
     const handleCancelEdit = () => {
         setEditingUser(null);
         setEditForm({
-            email: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
+            email: '', username: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
             disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
         });
         setError('');
@@ -112,7 +113,8 @@ export default function AdminUsersPage() {
         if (!editingUser) return;
         try {
             const updateData: any = {
-                email: editForm.email,
+                email: editForm.email || undefined,
+                username: editForm.username || undefined,
                 apiKey: editForm.apiKey,
                 metricsEnabled: editForm.metricsEnabled,
                 canManageUsers: editForm.canManageUsers,
@@ -195,7 +197,7 @@ export default function AdminUsersPage() {
             if (res.ok) {
                 setShowNewUserModal(false);
                 setNewUserForm({
-                    email: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
+                    username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
                     canManageUsers: false, canEditTemplates: false, canExportData: false
                 });
                 fetchUsers();
@@ -211,7 +213,8 @@ export default function AdminUsersPage() {
     };
 
     const filteredUsers = users.filter(user =>
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
         user.id.toString().includes(searchTerm)
     );
 
@@ -260,8 +263,8 @@ export default function AdminUsersPage() {
                         <div className="p-6 overflow-y-auto">
                             <form id="new-user-form" onSubmit={handleCreateUser} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico (Login)</label>
-                                    <input type="email" required value={newUserForm.email} onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="agente@empresa.com" />
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de Usuario (Para logueo)</label>
+                                    <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({ ...newUserForm, username: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="ej. analista01" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña de Acceso</label>
@@ -400,11 +403,11 @@ export default function AdminUsersPage() {
                                                 <div className="flex items-center border rounded p-1">
                                                     <Mail className="h-4 w-4 text-gray-400 mx-2" />
                                                     <input
-                                                        type="email"
-                                                        value={editForm.email}
-                                                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                                                        type={user.role === 'ADMIN' ? 'email' : 'text'}
+                                                        value={user.role === 'ADMIN' ? editForm.email : editForm.username}
+                                                        onChange={(e) => user.role === 'ADMIN' ? setEditForm({ ...editForm, email: e.target.value }) : setEditForm({ ...editForm, username: e.target.value })}
                                                         className="w-full text-sm outline-none text-gray-900"
-                                                        placeholder="Email"
+                                                        placeholder={user.role === 'ADMIN' ? "Email de Admin" : "Nombre de Usuario"}
                                                     />
                                                 </div>
                                                 <div className="flex items-center border rounded p-1">
@@ -420,7 +423,7 @@ export default function AdminUsersPage() {
                                             </div>
                                         ) : (
                                             <div>
-                                                <div className="text-sm font-medium text-gray-900">{user.email}</div>
+                                                <div className="text-sm font-medium text-gray-900">{user.email || user.username}</div>
                                                 <div className="text-xs text-gray-500 mt-1">
                                                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
                                                         {user.role}

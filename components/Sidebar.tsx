@@ -62,7 +62,7 @@ export default function Sidebar() {
                 const resProfile = await fetch('/api/auth/profile');
                 if (resProfile.ok) {
                     const profile = await resProfile.json();
-                    if (profile.metricsEnabled) {
+                    if (profile?.user?.metricsEnabled) {
                         setMetricsEnabled(true);
                     }
                 }

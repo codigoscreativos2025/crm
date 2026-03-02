@@ -23,7 +23,7 @@ export default async function AdminPage() {
     // Fetch Contacts with details for the list
     const contacts = await prisma.contact.findMany({
         include: {
-            user: { select: { email: true } },
+            user: { select: { email: true, username: true } },
             stage: { include: { funnel: { select: { name: true } } } },
             _count: { select: { messages: true } }
         },

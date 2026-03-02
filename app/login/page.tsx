@@ -60,13 +60,13 @@ function LoginForm() {
                 )}
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Usuario o Email</label>
                         <input
-                            type="email"
+                            type="text"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
-                            placeholder="usuario@ejemplo.com"
+                            placeholder="Ej: mi_farmacia o correo@ej.com"
                             required
                         />
                     </div>

@@ -8,7 +8,7 @@ interface Contact {
     name: string | null;
     phone: string;
     stage: { name: string; funnel: { name: string } } | null;
-    user: { email: string };
+    user: { email: string | null; username: string | null };
     _count: { messages: number };
 }
 
@@ -29,7 +29,7 @@ export default function AdminContactList({ initialContacts }: AdminContactListPr
 
     // Derive options from contacts (or could fetch from API)
     const funnels = Array.from(new Set(initialContacts.map(c => c.stage?.funnel.name).filter(Boolean))) as string[];
-    const owners = Array.from(new Set(initialContacts.map(c => c.user.email).filter(Boolean))) as string[];
+    const owners = Array.from(new Set(initialContacts.map(c => c.user.email || c.user.username || 'Sistema').filter(Boolean))) as string[];
 
     // Stages depend on selected Funnel (simplified: just list all unique stages if no funnel selected, or filtered by funnel)
     const stages = Array.from(new Set(initialContacts
@@ -39,13 +39,14 @@ export default function AdminContactList({ initialContacts }: AdminContactListPr
     )) as string[];
 
     const filteredContacts = initialContacts.filter(c => {
+        const ownerIdentifier = c.user.email || c.user.username || 'Sistema';
         const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             c.phone.includes(searchTerm) ||
-            c.user.email.toLowerCase().includes(searchTerm.toLowerCase());
+            ownerIdentifier.toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesFunnel = selectedFunnel === 'all' || c.stage?.funnel.name === selectedFunnel;
         const matchesStage = selectedStage === 'all' || c.stage?.name === selectedStage;
-        const matchesOwner = selectedOwner === 'all' || c.user.email === selectedOwner;
+        const matchesOwner = selectedOwner === 'all' || ownerIdentifier === selectedOwner;
 
         return matchesSearch && matchesFunnel && matchesStage && matchesOwner;
     });
@@ -142,7 +143,7 @@ export default function AdminContactList({ initialContacts }: AdminContactListPr
                     <tbody className="divide-y divide-gray-200">
                         {filteredContacts.map((contact) => (
                             <tr key={contact.id} className="hover:bg-gray-50 transition">
-                                <td className="px-6 py-4 font-medium text-gray-900">{contact.user.email}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900">{contact.user.email || contact.user.username || 'Sistema'}</td>
                                 <td className="px-6 py-4">
                                     <div className="font-medium text-gray-900">{contact.name || "Sin Nombre"}</div>
                                     <div className="text-xs text-gray-500">{contact.phone}</div>

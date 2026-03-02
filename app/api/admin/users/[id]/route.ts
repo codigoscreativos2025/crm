@@ -22,11 +22,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         const targetUserId = parseInt(params.id);
         const body = await req.json();
-        const { email, password, apiKey, metricsEnabled, canManageUsers, canEditTemplates, canExportData, isActive, disabledMessage, n8nWebhookUrl } = body;
+        const { email, username, password, apiKey, metricsEnabled, canManageUsers, canEditTemplates, canExportData, isActive, disabledMessage, n8nWebhookUrl } = body;
 
         const updateData: any = {};
 
-        if (email) updateData.email = email;
+        if (email !== undefined) updateData.email = email;
+        if (username !== undefined) updateData.username = username;
         if (apiKey) updateData.apiKey = apiKey;
         if (typeof metricsEnabled === 'boolean') updateData.metricsEnabled = metricsEnabled;
         if (typeof canManageUsers === 'boolean') updateData.canManageUsers = canManageUsers;
@@ -56,12 +57,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             }
         }
 
+        // Check if username is already taken
+        if (username) {
+            const existingUser = await prisma.user.findUnique({
+                where: { username }
+            });
+            if (existingUser && existingUser.id !== targetUserId) {
+                return NextResponse.json({ error: "El nombre de usuario ya está en uso" }, { status: 400 });
+            }
+        }
+
         const updatedUser = await prisma.user.update({
             where: { id: targetUserId },
             data: updateData,
             select: {
                 id: true,
                 email: true,
+                username: true,
                 role: true,
                 apiKey: true,
                 metricsEnabled: true,
