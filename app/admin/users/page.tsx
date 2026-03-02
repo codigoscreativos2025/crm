@@ -314,7 +314,7 @@ export default function AdminUsersPage() {
                                                         value={editForm.apiKey}
                                                         onChange={(e) => setEditForm({ ...editForm, apiKey: e.target.value })}
                                                         className="w-full text-sm outline-none text-gray-900"
-                                                        placeholder="Evolution API Key"
+                                                        placeholder="Token de Conexión"
                                                     />
                                                 </div>
                                                 <div className="flex items-center border rounded p-1">
@@ -324,7 +324,7 @@ export default function AdminUsersPage() {
                                                         value={editForm.n8nWebhookUrl}
                                                         onChange={(e) => setEditForm({ ...editForm, n8nWebhookUrl: e.target.value })}
                                                         className="w-full text-sm outline-none text-gray-900 bg-transparent"
-                                                        placeholder="n8n Webhook URL"
+                                                        placeholder="URL del Receptor Integrado"
                                                     />
                                                 </div>
                                                 <label className="flex items-center gap-2 cursor-pointer mt-2 text-sm text-gray-700">
@@ -343,11 +343,11 @@ export default function AdminUsersPage() {
                                             </div>
                                         ) : (
                                             <div className="text-sm text-gray-500">
-                                                <div className="flex items-center gap-1 mb-1" title="API Key">
+                                                <div className="flex items-center gap-1 mb-1" title="Token API">
                                                     <Key className="h-3 w-3" />
                                                     <span className="truncate w-32">{user.apiKey || 'No configurada'}</span>
                                                 </div>
-                                                <div className="flex items-center gap-1 mb-1" title="n8n Webhook URL">
+                                                <div className="flex items-center gap-1 mb-1" title="URL del Receptor">
                                                     <div className="text-[10px] font-bold">🔗</div>
                                                     <span className="truncate w-32">{user.n8nWebhookUrl || 'No configurado'}</span>
                                                 </div>

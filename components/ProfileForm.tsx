@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 interface Funnel {
     id: number;
     name: string;
+    stages?: { id: number, name: string }[];
 }
 
 export default function ProfileForm() {
@@ -18,6 +19,8 @@ export default function ProfileForm() {
     // Funnel Config State
     const [funnels, setFunnels] = useState<Funnel[]>([]);
     const [defaultFunnelId, setDefaultFunnelId] = useState<string>('');
+    const [defaultStageId, setDefaultStageId] = useState<string>('');
+    const [aiDeactivationMinutes, setAiDeactivationMinutes] = useState<number>(60);
     const [loadedFunnel, setLoadedFunnel] = useState(false);
 
     useEffect(() => {
@@ -34,8 +37,10 @@ export default function ProfileForm() {
         fetch('/api/auth/session') // NextAuth expone la sesión
             .then(res => res.json())
             .then(data => {
-                if (data?.user?.defaultFunnelId) {
-                    setDefaultFunnelId(String(data.user.defaultFunnelId));
+                if (data?.user) {
+                    if (data.user.defaultFunnelId) setDefaultFunnelId(String(data.user.defaultFunnelId));
+                    if (data.user.defaultStageId) setDefaultStageId(String(data.user.defaultStageId));
+                    if (data.user.aiDeactivationMinutes) setAiDeactivationMinutes(Number(data.user.aiDeactivationMinutes));
                 }
                 setLoadedFunnel(true);
             })
@@ -57,7 +62,11 @@ export default function ProfileForm() {
             const payload: any = {};
             if (password) payload.password = password;
             // Solo mandamos si realmente se interactuó y cargó
-            if (loadedFunnel) payload.defaultFunnelId = defaultFunnelId || null;
+            if (loadedFunnel) {
+                payload.defaultFunnelId = defaultFunnelId || null;
+                payload.defaultStageId = defaultStageId || null;
+                payload.aiDeactivationMinutes = aiDeactivationMinutes;
+            }
 
             if (Object.keys(payload).length === 0) {
                 setMsg('No hay cambios para guardar.');
@@ -131,6 +140,30 @@ export default function ProfileForm() {
                             <option key={f.id} value={f.id}>{f.name}</option>
                         ))}
                     </select>
+
+                    <label className="block text-sm font-medium text-gray-700 mb-1 mt-4">Etapa por defecto</label>
+                    <select
+                        value={defaultStageId}
+                        onChange={(e) => setDefaultStageId(e.target.value)}
+                        disabled={!loadedFunnel || !defaultFunnelId}
+                        className="w-full border border-gray-300 rounded-md p-2 focus:ring-whatsapp-green focus:border-whatsapp-green outline-none"
+                    >
+                        <option value="">Primera etapa (por defecto)</option>
+                        {funnels.find(f => f.id === Number(defaultFunnelId))?.stages?.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
+
+                    <label className="block text-sm font-medium text-gray-700 mb-1 mt-4">Tiempo de Desactivación de IA (Minutos)</label>
+                    <p className="text-xs text-gray-500 mb-2">Al pausar manualmente un lead en el chat, la IA no responderá durante la cantidad de minutos especificada aquí.</p>
+                    <input
+                        type="number"
+                        min="1"
+                        value={aiDeactivationMinutes}
+                        onChange={(e) => setAiDeactivationMinutes(Number(e.target.value))}
+                        disabled={!loadedFunnel}
+                        className="w-full border border-gray-300 rounded-md p-2 focus:ring-whatsapp-green focus:border-whatsapp-green outline-none"
+                    />
                 </div>
             </div>
 

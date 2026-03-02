@@ -41,11 +41,12 @@ export async function GET(req: NextRequest) {
         });
 
         // Flatten response for easy use in n8n
-        const result = contacts.map(c => ({
+        const result = contacts.map((c: any) => ({
             id: c.id,
             name: c.name,
             nameConfirmed: c.nameConfirmed,
             phone: c.phone,
+            aiDisabled: c.aiDisabledUntil ? c.aiDisabledUntil.getTime() > Date.now() : false,
             stage: c.stage ? {
                 id: c.stage.id,
                 name: c.stage.name,

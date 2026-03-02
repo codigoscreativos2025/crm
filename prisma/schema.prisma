@@ -15,6 +15,8 @@ model User {
   apiKey          String    @unique
   role            String    @default("USER") // USER, ADMIN
   defaultFunnelId Int?
+  defaultStageId  Int?
+  aiDeactivationMinutes Int @default(60)
   metricsEnabled  Boolean   @default(false)
   isActive        Boolean   @default(true)
   disabledMessage String?
@@ -63,10 +65,11 @@ model Stage {
 
 model Contact {
   id        Int       @id @default(autoincrement())
-  phone     String
-  name      String?
+  phone         String
+  name          String?
   userId        Int
   nameConfirmed Boolean   @default(false)
+  aiDisabledUntil DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   user          User      @relation(fields: [userId], references: [id])

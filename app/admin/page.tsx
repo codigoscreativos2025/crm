@@ -41,10 +41,16 @@ export default async function AdminPage() {
                         </Link>
                         <h1 className="text-3xl font-bold text-gray-800">Panel de Super Administrador</h1>
                     </div>
-                    <Link href="/admin/users" className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition shadow-sm font-medium">
-                        <Users className="h-5 w-5" />
-                        Gestionar Usuarios
-                    </Link>
+                    <div className="flex gap-4">
+                        <Link href="/dashboard/api-docs" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition shadow-sm font-medium">
+                            <Database className="h-5 w-5" />
+                            API & Webhooks
+                        </Link>
+                        <Link href="/admin/users" className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition shadow-sm font-medium">
+                            <Users className="h-5 w-5" />
+                            Gestionar Usuarios
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Stats Cards */}

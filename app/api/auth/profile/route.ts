@@ -16,10 +16,12 @@ export async function GET() {
                 email: true,
                 role: true,
                 defaultFunnelId: true,
+                defaultStageId: true,
+                aiDeactivationMinutes: true,
                 metricsEnabled: true
             }
         });
-        return NextResponse.json(user);
+        return NextResponse.json({ user });
     } catch (error) {
         return NextResponse.json({ error: "Error fetching profile" }, { status: 500 });
     }
@@ -33,7 +35,7 @@ export async function PATCH(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { password, defaultFunnelId } = body;
+        const { password, defaultFunnelId, defaultStageId, aiDeactivationMinutes } = body;
 
         const updateData: any = {};
 
@@ -42,6 +44,18 @@ export async function PATCH(req: NextRequest) {
                 return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
             }
             updateData.password = password; // In prod, hash this!
+        }
+
+        if (aiDeactivationMinutes !== undefined) {
+            updateData.aiDeactivationMinutes = parseInt(aiDeactivationMinutes);
+        }
+
+        if (defaultStageId !== undefined) {
+            if (defaultStageId === null || defaultStageId === "") {
+                updateData.defaultStageId = null;
+            } else {
+                updateData.defaultStageId = Number(defaultStageId);
+            }
         }
 
         if (defaultFunnelId !== undefined) {

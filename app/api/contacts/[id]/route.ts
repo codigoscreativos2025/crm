@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     try {
         const body = await req.json();
-        const { stageId, name } = body;
+        const { stageId, name, disableAI } = body;
 
         const updateData: any = {
             stageId: stageId ? parseInt(stageId) : undefined,
@@ -48,6 +48,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (name) {
             updateData.name = name;
             updateData.nameConfirmed = true;
+        }
+
+        if (disableAI !== undefined) {
+            if (disableAI) {
+                const user = await prisma.user.findUnique({ where: { id: parseInt(session.user.id) } });
+                const minutes = user?.aiDeactivationMinutes || 60;
+                updateData.aiDisabledUntil = new Date(Date.now() + minutes * 60000);
+            } else {
+                updateData.aiDisabledUntil = null;
+            }
         }
 
         const contact = await prisma.contact.update({

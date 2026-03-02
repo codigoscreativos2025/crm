@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X, Trash2, Copy, Forward } from 'lucide-react';
 import FunnelSelector from '@/components/FunnelSelector';
 import ContactInfo from '@/components/ContactInfo';
+import { useAlert } from '@/components/AlertProvider';
 import dynamic from 'next/dynamic';
 
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -28,6 +29,7 @@ interface Contact {
     phone: string;
     stageId: number | null;
     nameConfirmed?: boolean;
+    aiDisabledUntil?: string | null;
 }
 
 export default function ChatPage() {
@@ -58,7 +60,9 @@ export default function ChatPage() {
     const [selectedMessages, setSelectedMessages] = useState<number[]>([]);
     const [showForwardModal, setShowForwardModal] = useState(false);
     const [allContacts, setAllContacts] = useState<any[]>([]);
+    const { showAlert, showConfirm } = useAlert();
     const [forwardSearch, setForwardSearch] = useState('');
+    const [timeLeftAIPaused, setTimeLeftAIPaused] = useState<string | null>(null);
     const isSelectionMode = selectedMessages.length > 0;
 
     // UI Enhancements
@@ -244,7 +248,8 @@ export default function ChatPage() {
     };
 
     const handleDeleteMessage = async (messageId: number) => {
-        if (!confirm('¿Eliminar este mensaje?')) return;
+        const confirmed = await showConfirm('¿Eliminar este mensaje?');
+        if (!confirmed) return;
         try {
             const res = await fetch(`/api/messages?messageId=${messageId}`, { method: 'DELETE' });
             if (res.ok) {
@@ -277,10 +282,10 @@ export default function ChatPage() {
 
     const handleCopySelected = () => {
         const selectedMsgs = messages.filter(m => selectedMessages.includes(m.id)).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-        const textToCopy = selectedMsgs.map(m => `[${safelyFormatTime(m.timestamp)}] ${m.direction === 'inbound' ? contact?.name || 'Cliente' : 'Yo'}: ${m.body}`).join('\n');
+        const textToCopy = selectedMsgs.map(m => m.body).join('\n\n');
         navigator.clipboard.writeText(textToCopy);
         setSelectedMessages([]);
-        alert('Mensajes copiados al portapapeles');
+        showAlert('Mensajes copiados al portapapeles', 'success');
     };
 
     const handleForwardSelected = async (targetContactId: number) => {
@@ -309,14 +314,32 @@ export default function ChatPage() {
                     })
                 });
             }
-            alert('Mensajes reenviados con éxito');
+            showAlert('Mensajes reenviados con éxito', 'success');
             setShowForwardModal(false);
             setSelectedMessages([]);
         } catch (error) {
             console.error('Error al reenviar', error);
-            alert('Ocurrió un error al reenviar algunos mensajes.');
+            showAlert('Ocurrió un error al reenviar algunos mensajes.', 'error');
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleDeleteSelected = async () => {
+        if (selectedMessages.length === 0) return;
+        const confirmed = await showConfirm(`¿Estás seguro de eliminar ${selectedMessages.length} mensaje(s)?`);
+        if (!confirmed) return;
+
+        try {
+            for (const id of selectedMessages) {
+                await fetch(`/api/messages?messageId=${id}`, { method: 'DELETE' });
+            }
+            setMessages(prev => prev.filter(m => !selectedMessages.includes(m.id)));
+            setSelectedMessages([]);
+            showAlert('Mensajes eliminados', 'success');
+        } catch (error) {
+            console.error(error);
+            showAlert('Error al eliminar mensajes', 'error');
         }
     };
 
@@ -367,6 +390,54 @@ export default function ChatPage() {
         return () => clearInterval(interval);
     }, [contactId]);
 
+    // Calculate AI Pause Time Left effect
+    useEffect(() => {
+        if (!contact?.aiDisabledUntil) {
+            setTimeLeftAIPaused(null);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const end = new Date(contact.aiDisabledUntil!).getTime();
+            const now = Date.now();
+            const diff = end - now;
+
+            if (diff <= 0) {
+                setTimeLeftAIPaused(null);
+            } else {
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                setTimeLeftAIPaused(`${h > 0 ? h + 'h ' : ''}${m}m ${s}s`);
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [contact?.aiDisabledUntil]);
+
+    const handleToggleAI = async () => {
+        const isPaused = !!contact?.aiDisabledUntil && new Date(contact.aiDisabledUntil).getTime() > Date.now();
+        const actionText = isPaused ? "¿Reactivar la IA para este lead ahora?" : "¿Pausar la IA temporalmente para este lead?";
+        const confirmed = await showConfirm(actionText);
+
+        if (confirmed && contact) {
+            try {
+                const res = await fetch(`/api/contacts/${contact.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ disableAI: !isPaused })
+                });
+                if (res.ok) {
+                    const updated = await res.json();
+                    setContact(updated);
+                    showAlert(isPaused ? 'IA Reactivada' : 'IA Pausada temporalmente', 'success');
+                }
+            } catch (e) {
+                showAlert('Error cambiando el estado de la IA', 'error');
+            }
+        }
+    };
+
     // Scroll and Read Status Effect on Load
     useEffect(() => {
         if (!loading && messages.length > 0) {
@@ -414,20 +485,24 @@ export default function ChatPage() {
     }
 
     const handleClearChat = async () => {
-        if (!confirm('¿Estás seguro de vaciar este chat? Esta acción no se puede deshacer.')) return;
+        const confirmed = await showConfirm('¿Estás seguro de vaciar este chat? Esta acción no se puede deshacer.');
+        if (!confirmed) return;
         try {
             const res = await fetch(`/api/messages?contactId=${contactId}`, { method: 'DELETE' });
             if (res.ok) {
                 setMessages([]);
                 setShowMenu(false);
+                showAlert('Chat vaciado exitosamente', 'success');
             }
         } catch (error) {
             console.error(error);
+            showAlert('Hubo un error al vaciar el chat', 'error');
         }
     };
 
     const handleDeleteContact = async () => {
-        if (!confirm('¿Estás seguro de eliminar este chat y el contacto?')) return;
+        const confirmed = await showConfirm('¿Estás seguro de eliminar este chat y el contacto?');
+        if (!confirmed) return;
         try {
             const res = await fetch(`/api/contacts/${contactId}`, { method: 'DELETE' });
             if (res.ok) {
@@ -435,6 +510,7 @@ export default function ChatPage() {
             }
         } catch (error) {
             console.error(error);
+            showAlert('Hubo un error al eliminar el contacto', 'error');
         }
     };
 
@@ -508,6 +584,9 @@ export default function ChatPage() {
                         <span className="font-semibold text-lg">{selectedMessages.length} seleccionado(s)</span>
                     </div>
                     <div className="flex items-center gap-2">
+                        <button onClick={handleDeleteSelected} className="flex flex-col items-center hover:bg-white/20 p-2 rounded transition" title="Eliminar Seleccionados">
+                            <Trash2 className="h-5 w-5" />
+                        </button>
                         <button onClick={handleCopySelected} className="flex flex-col items-center hover:bg-white/20 p-2 rounded transition" title="Copiar">
                             <Copy className="h-5 w-5" />
                         </button>
@@ -528,7 +607,18 @@ export default function ChatPage() {
                             </div>
                         </div>
                         <div className="ml-4">
-                            <h2 className="text-gray-900 font-medium">{contact?.name || `Contacto ${contactId}`}</h2>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-gray-900 font-medium">{contact?.name || `Contacto ${contactId}`}</h2>
+                                {contact && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleToggleAI(); }}
+                                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${timeLeftAIPaused ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                                        title={timeLeftAIPaused ? 'Click para reactivar' : 'Click para pausar IA temporalmente'}
+                                    >
+                                        {timeLeftAIPaused ? `🤖 Pausado: ${timeLeftAIPaused}` : '🤖 Activa'}
+                                    </button>
+                                )}
+                            </div>
                             <p className="text-xs text-gray-500">{contact?.phone} • Click para info</p>
                         </div>
                     </div>

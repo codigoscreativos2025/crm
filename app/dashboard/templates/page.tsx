@@ -102,8 +102,29 @@ export default function TemplatesPage() {
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <MessageSquareQuote className="h-6 w-6 text-blue-500" /> Plantillas de Mensajes
+                    <MessageSquareQuote className="h-6 w-6 text-blue-500" /> Plantillas 24 horas
                 </h1>
+            </div>
+
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8 rounded-r-lg shadow-sm">
+                <div className="flex">
+                    <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">Concepto de Plantillas de 24 horas (Respuestas Rápidas)</h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                            <p>
+                                Estas plantillas se diseñan para uso libre cuando un cliente ha interactuado escribiendo un mensaje dentro de las <strong>últimas 24 horas</strong>.
+                            </p>
+                            <p className="mt-1">
+                                Para enviar notificaciones de Utilidad o Marketing a leads que superen la ventana de 24 horas (Plantillas Oficiales cobradas por Meta), se debe usar el panel de <em>Plantillas Oficiales Meta</em> (próximamente).
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {error && (
@@ -155,7 +176,7 @@ export default function TemplatesPage() {
                             )}
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                            Usa <kbd className="bg-gray-100 px-1 rounded border">Ctrl</kbd> + <kbd className="bg-gray-100 px-1 rounded border">/</kbd> o escribe <kbd className="bg-gray-100 px-1 rounded border">/</kbd> en el chat para usarlas.
+                            Usa <kbd className="bg-gray-100 px-1 rounded border">Ctrl</kbd> + <kbd className="bg-gray-100 px-1 rounded border">/</kbd> o escribe el sufijo <kbd className="bg-gray-100 px-1 rounded border">//</kbd> en el chat para usarlas.
                         </p>
                     </div>
                 </div>
