@@ -93,7 +93,7 @@ export async function PATCH(req: NextRequest) {
         const targetContact = await prisma.contact.findUnique({
             where: {
                 userId_phone: {
-                    userId: user.id,
+                    userId: user.parentId || user.id, // Permite encontrar contactos compartidos con el principal
                     phone: phone
                 }
             }
@@ -105,24 +105,36 @@ export async function PATCH(req: NextRequest) {
 
         const updateData: any = {};
 
-        if (stageId !== undefined) {
+        if (stageId !== undefined && stageId !== null) {
+            const parsedStageId = parseInt(String(stageId).trim(), 10);
+            if (isNaN(parsedStageId)) {
+                return NextResponse.json({ error: "stageId debe ser un número válido" }, { status: 400 });
+            }
+
             // Verify stage belongs to this user's funnel
             const stage = await prisma.stage.findFirst({
-                where: { id: stageId, funnel: { userId: user.parentId || user.id } }
+                where: { id: parsedStageId, funnel: { userId: user.parentId || user.id } }
             });
             if (!stage) {
                 return NextResponse.json({ error: "Etapa inválida o no pertenece al usuario" }, { status: 400 });
             }
-            updateData.stageId = stageId;
+            updateData.stageId = parsedStageId;
         }
 
-        if (name !== undefined) {
-            updateData.name = name;
+        if (name !== undefined && name !== null) {
+            updateData.name = String(name).trim();
             updateData.nameConfirmed = true;
         }
 
-        if (disableAI !== undefined) {
-            if (disableAI) {
+        if (disableAI !== undefined && disableAI !== null) {
+            let isDisableAITrue = false;
+            if (typeof disableAI === 'string') {
+                isDisableAITrue = disableAI.trim().toLowerCase() === 'true';
+            } else {
+                isDisableAITrue = Boolean(disableAI);
+            }
+
+            if (isDisableAITrue) {
                 const pauseTime = user.aiDeactivationMinutes || 60;
                 const until = new Date();
                 until.setMinutes(until.getMinutes() + pauseTime);
