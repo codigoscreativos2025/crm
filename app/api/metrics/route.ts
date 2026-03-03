@@ -48,6 +48,17 @@ export async function GET(req: NextRequest) {
             where: { contact: { userId: ownerId }, timestamp: { gte: thirtyDaysAgo } }
         });
 
+        // KPI: Active Dialogs (Currently typing / Less than 15 mins)
+        const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+        const activeDialogsCount = await prisma.contact.count({
+            where: {
+                userId: ownerId,
+                messages: {
+                    some: { timestamp: { gte: fifteenMinsAgo } }
+                }
+            }
+        });
+
         // KPI: Unread / Unreplied Chats
         const unrepliedMessages = await prisma.message.count({
             where: { contact: { userId: ownerId }, direction: 'inbound', isReadByAgent: false }
@@ -62,13 +73,12 @@ export async function GET(req: NextRequest) {
             select: { createdAt: true }
         });
 
-        // Group contacts by date string (e.g. "Mon", "Tue")
+        // Group contacts by date string (e.g. "Mon", "Tue") for last 7 days
         const daysMap: Record<string, number> = {
             'Dom': 0, 'Lun': 0, 'Mar': 0, 'Mié': 0, 'Jue': 0, 'Vie': 0, 'Sáb': 0
         };
 
         const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
         recentContacts.forEach((c: { createdAt: Date }) => {
             const dayName = dayNames[c.createdAt.getDay()];
             daysMap[dayName]++;
@@ -77,6 +87,33 @@ export async function GET(req: NextRequest) {
         const leadsTrend = Object.keys(daysMap).map(day => ({
             name: day,
             leads: daysMap[day]
+        }));
+
+        // Lead Inflow: Historical Daily Ingress (Last 30 Days)
+        const leadInflowQuery = await prisma.contact.findMany({
+            where: { userId: ownerId, createdAt: { gte: thirtyDaysAgo } },
+            select: { createdAt: true }
+        });
+
+        const leadInflowMap: Record<string, number> = {};
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateString = `${d.getDate()}/${d.getMonth() + 1}`;
+            leadInflowMap[dateString] = 0;
+        }
+
+        leadInflowQuery.forEach((c: { createdAt: Date }) => {
+            const d = c.createdAt;
+            const dateString = `${d.getDate()}/${d.getMonth() + 1}`;
+            if (leadInflowMap[dateString] !== undefined) {
+                leadInflowMap[dateString]++;
+            }
+        });
+
+        const leadInflow = Object.keys(leadInflowMap).map(date => ({
+            date,
+            leads: leadInflowMap[date]
         }));
 
         // Lead Sources for Pie Chart
@@ -114,6 +151,22 @@ export async function GET(req: NextRequest) {
                 }
             }
         });
+
+        // Advanced Metrics: Tags Density
+        const allTags = await prisma.tag.findMany({
+            where: { userId: ownerId },
+            include: {
+                _count: {
+                    select: { contacts: true }
+                }
+            }
+        });
+
+        const tagsDensity = allTags.map((t: any) => ({
+            name: t.name,
+            value: t._count.contacts,
+            color: t.color
+        }));
 
         const globalUnrepliedContacts: any[] = [];
 
@@ -339,6 +392,18 @@ export async function GET(req: NextRequest) {
         const globalAvgResTimeIA = globalResponseCountIA > 0 ? Math.round((totalGlobalResponseTimeIA / globalResponseCountIA) / (1000 * 60)) : 0;
         const globalAvgResTimeHuman = globalResponseCountHuman > 0 ? Math.round((totalGlobalResponseTimeHuman / globalResponseCountHuman) / (1000 * 60)) : 0;
 
+        // Simple Predictive Module based on current daily averages
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const currentDayOfMoth = now.getDate();
+        const avgLeadsPerDay = currentDayOfMoth > 0 ? (leadsThisMonth / currentDayOfMoth) : 0;
+        const avgMessagesPerDay = currentDayOfMoth > 0 ? (messagesThisMonth / currentDayOfMoth) : 0;
+
+        const projections = {
+            estimatedLeadsThisMonth: Math.round(avgLeadsPerDay * daysInMonth),
+            estimatedMessagesThisMonth: Math.round(avgMessagesPerDay * daysInMonth),
+            projectedGrowth: avgLeadsPerDay > 0 ? Math.round(((avgLeadsPerDay * daysInMonth) - totalLeads) / totalLeads * 100) : 0
+        };
+
         return NextResponse.json({
             kpis: {
                 totalLeads,
@@ -346,6 +411,7 @@ export async function GET(req: NextRequest) {
                 messagesThisMonth,
                 unrepliedMessages,
                 newLeadsToday,
+                activeDialogsCount,
                 globalAvgConversationLengthMins,
                 globalAvgResTimeIA,
                 globalAvgResTimeHuman,
@@ -353,14 +419,17 @@ export async function GET(req: NextRequest) {
                 globalCRMMessages
             },
             leadsTrend,
+            leadInflow,
             channelPerformance: [],
             leadSources,
             funnelStats,
+            tagsDensity,
             peakHours,
             weeklyPeakHours,
             unrepliedPeakHours,
             unrepliedLeadsList: globalUnrepliedContacts,
-            recentMessages: formattedRecentMessages
+            recentMessages: formattedRecentMessages,
+            projections
         });
 
     } catch (error) {

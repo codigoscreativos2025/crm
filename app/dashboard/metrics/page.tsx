@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, FunnelChart, Funnel as RechartsFunnel, LabelList } from 'recharts';
 import { ArrowLeft, MessageSquare, Clock, AlertTriangle, ArrowUpRight, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -61,7 +61,12 @@ export default function MetricsDashboard() {
             const res = await fetch(`/api/metrics/export?format=${format}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ kpis: data.kpis, funnelStats: data.funnelStats })
+                body: JSON.stringify({
+                    kpis: data.kpis,
+                    funnelStats: data.funnelStats,
+                    tagsDensity: data.tagsDensity,
+                    projections: data.projections
+                })
             });
             if (!res.ok) throw new Error('Export failed');
 
@@ -110,6 +115,22 @@ export default function MetricsDashboard() {
                     }))
                 ).filter((s: any) => s.responseTime > 0 || s.retention > 0) || [];
 
+                const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8B5CF6', '#EC4899'];
+
+                // Colors for Density mapping
+                const mappedFunnelTotals = funnelTotalsData.map((f: any, idx: number) => ({
+                    ...f,
+                    fill: COLORS[idx % COLORS.length]
+                }));
+
+                const flatStagesForFunnel = data.funnelStats?.flatMap((f: any) =>
+                    f.stages.map((s: any) => ({
+                        name: s.name,
+                        value: s.count,
+                        fill: COLORS[f.id % COLORS.length]
+                    }))
+                ).sort((a: any, b: any) => b.value - a.value) || [];
+
                 return (
                     <>
                         {/* Header */}
@@ -136,93 +157,79 @@ export default function MetricsDashboard() {
                         </div>
 
                         {/* KPI Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-1 justify-items-stretch w-full sm:grid-cols-2 lg:grid-cols-5 gap-4">
                             {/* Card 1 */}
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36 relative overflow-hidden">
+                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
                                     <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Total Leads</span>
-                                    <div className="p-1.5 bg-green-50 text-green-600 rounded-md">
-                                        <ArrowUpRight className="h-4 w-4" />
+                                    <div className="text-whatsapp-green font-bold text-sm bg-green-50 px-2 py-1 rounded">
+                                        +{data.kpis.newLeadsToday} hoy
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="flex items-baseline gap-2">
-                                        <h3 className="text-3xl font-bold text-gray-900">{data.kpis.totalLeads.toLocaleString()}</h3>
-                                    </div>
-                                    <p className="text-[10px] text-whatsapp-green font-bold mt-1">+{data.kpis.newLeadsToday} hoy</p>
+                                    <h3 className="text-4xl font-bold text-gray-900">{data.kpis.totalLeads.toLocaleString()}</h3>
+                                    <p className="text-[12px] text-gray-400 font-medium mt-1">
+                                        <ArrowUpRight className="h-3 w-3 inline text-whatsapp-green" />  {data.kpis.leadsThisMonth} este mes
+                                    </p>
                                 </div>
                             </div>
 
                             {/* Card 2 */}
                             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Diálogos Activos</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Active Dialogs</span>
                                     <div className="p-1.5 bg-purple-50 text-purple-600 rounded-md">
                                         <MessageSquare className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-bold text-purple-600">{data.kpis.messagesThisMonth.toLocaleString()}</h3>
-                                    <p className="text-[10px] text-green-500 font-medium mt-1">+{data.kpis.messagesThisMonth} mes actual</p>
+                                    <h3 className="text-4xl font-bold text-gray-900">{data.kpis.activeDialogsCount.toLocaleString()}</h3>
+                                    <p className="text-[12px] text-gray-400 font-medium mt-1">Conversaciones &lt; 15 mins</p>
                                 </div>
                             </div>
 
                             {/* Card 3 */}
                             <div
                                 onClick={() => setShowUnrepliedLeads(true)}
-                                className="bg-white p-5 rounded-2xl shadow-sm border border-red-200 hover:border-red-400 cursor-pointer flex flex-col justify-between h-36 transition"
+                                className="bg-red-50 p-5 rounded-2xl shadow-[0_0_0_1px_rgba(239,68,68,0.2)] cursor-pointer flex flex-col justify-between h-36 transition"
                             >
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Sin respuesta (Ver)</span>
-                                    <div className="p-1.5 bg-red-50 text-red-500 rounded-md">
-                                        <AlertTriangle className="h-4 w-4" />
+                                    <span className="text-xs font-bold text-red-700 uppercase tracking-tight">Unanswered Chats</span>
+                                    <div className="p-1 bg-white text-red-500 rounded-md shadow-sm">
+                                        <AlertTriangle className="h-3 w-3" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-bold text-gray-900">{data.kpis.unrepliedMessages.toLocaleString()}</h3>
-                                    <p className="text-[10px] text-red-400 font-medium mt-1">Atención requerida</p>
+                                    <h3 className="text-4xl font-bold text-gray-900">{data.kpis.unrepliedMessages.toLocaleString()}</h3>
+                                    <p className="text-[12px] text-red-600 font-medium mt-1">Action Required (Click ver)</p>
                                 </div>
                             </div>
 
-                            {/* Card 4 - Duración Chat */}
+                            {/* Card 4 - Respuestas IA / Humano combinada para Dashboard Ejecutivo */}
                             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Duración Chat (Prom.)</span>
-                                    <div className="p-1.5 bg-orange-50 text-orange-500 rounded-md">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Avg Response Time</span>
+                                    <div className="p-1.5 bg-blue-50 text-blue-500 rounded-md">
                                         <Clock className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-bold text-gray-900">{data.kpis.globalAvgConversationLengthMins}m</h3>
-                                    <p className="text-[10px] text-gray-400 mt-1">Tiempo general</p>
+                                    <h3 className="text-4xl font-bold text-gray-900">{data.kpis.globalAvgResTimeIA}m / {data.kpis.globalAvgResTimeHuman}m</h3>
+                                    <p className="text-[12px] text-gray-400 mt-1 font-medium">IA vs. Human Speed</p>
                                 </div>
                             </div>
 
-                            {/* Card 5 - Respuestas IA */}
+                            {/* Card 5 - Projections and Conversion */}
                             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">T. de Respuesta (IA)</span>
-                                    <div className="p-1.5 bg-blue-50 text-blue-500 rounded-md">
-                                        <MessageSquare className="h-4 w-4" />
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Projected Growth</span>
+                                    <div className="text-whatsapp-green font-bold text-sm">
+                                        <ArrowUpRight className="h-4 w-4 inline" /> {data.projections.projectedGrowth}%
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-bold text-blue-600">{data.kpis.globalAvgResTimeIA}m</h3>
-                                    <p className="text-[10px] text-gray-400 mt-1">Prom. vel. IA ({data.kpis.globalIAMessages.toLocaleString()} msgs)</p>
-                                </div>
-                            </div>
-
-                            {/* Card 6 - Respuestas CRM */}
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
-                                <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">T. de Respuesta (Humano)</span>
-                                    <div className="p-1.5 bg-indigo-50 text-indigo-500 rounded-md">
-                                        <MessageSquare className="h-4 w-4" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-3xl font-bold text-indigo-600">{data.kpis.globalAvgResTimeHuman}m</h3>
-                                    <p className="text-[10px] text-gray-400 mt-1">Prom. vel. agentes ({data.kpis.globalCRMMessages.toLocaleString()} msgs)</p>
+                                    <h3 className="text-4xl font-bold text-gray-900">{data.projections.estimatedLeadsThisMonth.toLocaleString()}</h3>
+                                    <p className="text-[12px] text-gray-400 mt-1 font-medium">Estimación leads (Fin de Mes)</p>
                                 </div>
                             </div>
                         </div>
@@ -230,40 +237,52 @@ export default function MetricsDashboard() {
                         {/* Charts Row */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                            {/* Left Column: Channel & Trend */}
+                            {/* Left Column: Flow vs Time AreaChart */}
                             <div className="lg:col-span-2 space-y-6">
-                                {/* Performance & Trends */}
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative">
                                     <div className="flex justify-between items-center mb-6">
                                         <h3 className="text-lg font-bold text-gray-800">
-                                            {showWeeklyPeak ? 'Actividad por Semanas (Últimas 4 Semanas)' : 'Horas Pico de Actividad (Últimos 7 Días)'}
+                                            Lead Inflow vs. Time
                                         </h3>
-                                        <button onClick={() => setShowWeeklyPeak(!showWeeklyPeak)} className="text-sm text-whatsapp-green font-medium hover:text-green-600 transition">
-                                            Ver {showWeeklyPeak ? 'Horas (24h)' : 'Semanas (Histórico)'}
-                                        </button>
+                                        <select
+                                            className="text-sm border-gray-200 rounded-lg p-2 bg-gray-50 outline-none hover:bg-gray-100 transition"
+                                            value={showWeeklyPeak ? 'weekly' : 'daily'}
+                                            onChange={(e) => setShowWeeklyPeak(e.target.value === 'weekly')}
+                                        >
+                                            <option value="daily">Daily (Last 30 Days)</option>
+                                            <option value="weekly">Hourly Peak (Overall)</option>
+                                        </select>
                                     </div>
 
-                                    <div className="h-[250px] w-full">
+                                    <div className="h-[280px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             {showWeeklyPeak ? (
-                                                <BarChart data={data.weeklyPeakHours}>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                                                    <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
-                                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                                    <Bar dataKey="count" fill="#25D366" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                                                </BarChart>
-                                            ) : (
                                                 <AreaChart data={data.peakHours}>
                                                     <defs>
-                                                        <linearGradient id="colorPeak" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="#25D366" stopOpacity={0} />
+                                                        <linearGradient id="colorPeak2" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                                                         </linearGradient>
                                                     </defs>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                                                     <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
+                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
                                                     <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                                    <Area type="monotone" dataKey="count" stroke="#25D366" strokeWidth={3} fillOpacity={1} fill="url(#colorPeak)" />
+                                                    <Area type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorPeak2)" />
+                                                </AreaChart>
+                                            ) : (
+                                                <AreaChart data={data.leadInflow}>
+                                                    <defs>
+                                                        <linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
+                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                    <Area type="monotone" dataKey="leads" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" />
                                                 </AreaChart>
                                             )}
                                         </ResponsiveContainer>
@@ -271,47 +290,47 @@ export default function MetricsDashboard() {
                                 </div>
                             </div>
 
-                            {/* Right Column: Donut Chart */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center">
-                                <h3 className="text-lg font-bold text-gray-800 w-full text-left mb-4">Fuentes de Leads</h3>
+                            {/* Right Column: Donut Chart - Lead Sources / Funnel Density */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-between">
+                                <h3 className="text-lg font-bold text-gray-800 w-full text-left mb-4">Densidad de Embudos</h3>
                                 <div className="flex-1 flex flex-col justify-center items-center w-full relative">
-                                    <div className="h-[250px] w-full relative">
+                                    <div className="h-[200px] w-full relative">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
                                                 <Pie
-                                                    data={data.leadSources}
+                                                    data={mappedFunnelTotals}
                                                     cx="50%"
                                                     cy="50%"
-                                                    innerRadius={70}
-                                                    outerRadius={95}
+                                                    innerRadius={60}
+                                                    outerRadius={85}
                                                     paddingAngle={2}
-                                                    dataKey="value"
+                                                    dataKey="leads"
                                                     stroke="none"
                                                     cornerRadius={4}
                                                 >
-                                                    {data.leadSources.map((entry: any, index: number) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    {mappedFunnelTotals.map((entry: any, index: number) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.fill} />
                                                     ))}
                                                 </Pie>
                                                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                                             </PieChart>
                                         </ResponsiveContainer>
                                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                            <span className="text-2xl font-bold text-gray-900">API</span>
-                                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Primaria</span>
+                                            <span className="text-2xl font-bold text-gray-900">{data.funnelStats?.length || 0}</span>
+                                            <span className="text-[10px] text-gray-400 border-t uppercase font-bold tracking-wider mt-1 pt-1">Embudos</span>
                                         </div>
                                     </div>
 
                                     {/* Legend */}
-                                    <div className="w-full mt-6 space-y-3 px-4">
-                                        {data.leadSources.map((source: any, idx: number) => (
+                                    <div className="w-full mt-4 space-y-2 px-2 overflow-y-auto max-h-32">
+                                        {mappedFunnelTotals.map((source: any, idx: number) => (
                                             <div key={idx} className="flex justify-between items-center">
                                                 <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: source.color }}></div>
-                                                    {source.name}
+                                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: source.fill }}></div>
+                                                    <span className="truncate max-w-[120px]" title={source.name}>{source.name}</span>
                                                 </div>
                                                 <span className="font-bold text-gray-800 text-sm">
-                                                    {Math.round((source.value / data.kpis.totalLeads) * 100)}%
+                                                    {data.kpis.totalLeads > 0 ? Math.round((source.leads / data.kpis.totalLeads) * 100) : 0}%
                                                 </span>
                                             </div>
                                         ))}
@@ -320,22 +339,25 @@ export default function MetricsDashboard() {
                             </div>
                         </div>
 
-                        {/* Extended Analytics Row */}
+                        {/* Extended Analytics Row 1: Funnel Chart & Velocity */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                            {/* Densidad de Embudos */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-800 mb-6">Densidad de Embudos</h3>
-                                <div className="h-[280px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={funnelTotalsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
-                                            <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                            <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
-                                            <Bar dataKey="leads" name="Total Leads" fill="#003366" radius={[4, 4, 0, 0]} maxBarSize={50} />
-                                            <Bar dataKey="unanswered" name="Sin Responder" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={50} />
-                                        </BarChart>
+                            {/* Funnel Chart - Leads By Stage */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+                                <h3 className="text-lg font-bold text-gray-800 mb-2">Leads by Stage (Global Conversion Flow)</h3>
+                                <p className="text-xs text-gray-400 mb-6">Flujo general de retención de prospectos combinando sub-etapas.</p>
+                                <div className="h-[280px] w-full bg-gray-50/50 rounded-xl relative flex justify-center items-center overflow-visible">
+                                    <ResponsiveContainer width="90%" height="90%">
+                                        <FunnelChart>
+                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                            <RechartsFunnel
+                                                dataKey="value"
+                                                data={flatStagesForFunnel}
+                                                isAnimationActive
+                                            >
+                                                <LabelList position="right" fill="#4b5563" stroke="none" dataKey="name" fontSize={12} />
+                                                <LabelList position="center" fill="#ffffff" stroke="none" dataKey="value" fontSize={14} fontWeight="bold" />
+                                            </RechartsFunnel>
+                                        </FunnelChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
@@ -357,6 +379,52 @@ export default function MetricsDashboard() {
                                     ) : (
                                         <div className="h-full flex items-center justify-center text-gray-400 text-sm">Insuficientes datos de respuesta para graficar.</div>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Extended Analytics Row 2: Tags & ... */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            {/* Tags Density */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="text-lg font-bold text-gray-800 mb-6">Densidad por Etiquetas (Intereses)</h3>
+                                <div className="h-[280px] w-full">
+                                    {data.tagsDensity && data.tagsDensity.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={data.tagsDensity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                                                <XAxis dataKey="tag" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                                                <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                <Bar dataKey="count" name="Frecuencia" fill="#EC4899" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin etiquetas registradas en este periodo.</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Predictive Projections */}
+                            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-2xl shadow-sm border border-blue-100 flex flex-col justify-center items-center text-center">
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">Proyecciones (Fin de Mes)</h3>
+                                <p className="text-sm text-gray-500 mb-8 max-w-sm">
+                                    Basado en los últimos 30 días, este es el estimado de crecimiento para el cierre del mes.
+                                </p>
+
+                                <div className="grid grid-cols-2 gap-4 w-full px-4">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                        <div className="text-3xl font-black text-blue-600 mb-1">{data.projections?.estimatedLeadsThisMonth.toLocaleString()}</div>
+                                        <div className="text-xs font-bold text-gray-400 uppercase">Leads Proyectados</div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                        <div className="text-3xl font-black text-indigo-600 mb-1">{data.projections?.estimatedMessagesThisMonth.toLocaleString()}</div>
+                                        <div className="text-xs font-bold text-gray-400 uppercase">Msgs Proyectados</div>
+                                    </div>
+                                    <div className="col-span-2 bg-white p-4 rounded-xl shadow-sm border border-gray-100 mt-2">
+                                        <div className="text-4xl font-black text-whatsapp-green mb-1">+{data.projections?.projectedGrowth}%</div>
+                                        <div className="text-xs font-bold text-gray-400 uppercase">Crecimiento Estimado (vs Mes Anterior)</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -690,6 +758,6 @@ export default function MetricsDashboard() {
                     </>
                 )
             })()}
-        </div>
+        </div >
     );
 }

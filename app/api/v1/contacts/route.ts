@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
                         funnel: true
                     }
                 },
+                tags: true,
                 messages: {
                     orderBy: { timestamp: "desc" },
                     take: 1,
@@ -56,6 +57,11 @@ export async function GET(req: NextRequest) {
                 id: c.stage.funnel.id,
                 name: c.stage.funnel.name,
             } : null,
+            tags: c.tags?.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                color: t.color
+            })) || [],
             lastMessage: c.messages[0]?.body || null,
             lastMessageAt: c.messages[0]?.timestamp || null,
         }));

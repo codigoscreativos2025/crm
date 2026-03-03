@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json().catch(() => ({}));
         const kpis = body.kpis || {};
         const funnelStats = body.funnelStats || [];
+        const tagsDensity = body.tagsDensity || [];
+        const projections = body.projections || {};
 
         // Fetch contacts with their details
         const contacts = await prisma.contact.findMany({
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
                 "Embudo": c.stage?.funnel?.name || 'No asignado',
                 "Etapa": c.stage?.name || 'No asignada',
                 "Estado Atn.": hasUnread ? 'Esperando Respuesta' : 'Al día',
-                "Confirmado por IA": c.nameConfirmed ? 'Sí' : 'No',
+                "IA Pausada": c.aiDisabledUntil && new Date(c.aiDisabledUntil).getTime() > Date.now() ? 'Sí' : 'No',
                 "Fecha Creación": c.createdAt.toLocaleString('es-ES', { timeZone: 'UTC' }),
                 "Última Actualización": c.updatedAt.toLocaleString('es-ES', { timeZone: 'UTC' })
             };
@@ -59,12 +61,15 @@ export async function POST(req: NextRequest) {
             { "Métrica": "Total Leads Históricos", "Valor": kpis.totalLeads || contacts.length },
             { "Métrica": "Leads Nuevos Hoy", "Valor": kpis.newLeadsToday || 0 },
             { "Métrica": "Conversaciones Activas Mes", "Valor": kpis.messagesThisMonth || 0 },
+            { "Métrica": "Conversaciones Activas (<15m)", "Valor": kpis.activeDialogsCount || 0 },
             { "Métrica": "Leads Sin Responder", "Valor": kpis.unrepliedMessages || 0 },
             { "Métrica": "Promedio Duración Sesión (min)", "Valor": kpis.globalAvgConversationLengthMins || 0 },
             { "Métrica": "Velocidad Respuesta IA (min)", "Valor": kpis.globalAvgResTimeIA || 0 },
             { "Métrica": "Velocidad Respuesta Humano (min)", "Valor": kpis.globalAvgResTimeHuman || 0 },
             { "Métrica": "Mensajes Generados por IA", "Valor": kpis.globalIAMessages || 0 },
-            { "Métrica": "Mensajes Operadores Humanos", "Valor": kpis.globalCRMMessages || 0 }
+            { "Métrica": "Mensajes Operadores Humanos", "Valor": kpis.globalCRMMessages || 0 },
+            { "Métrica": "Proyección Leads (Fin Mes)", "Valor": projections.estimatedLeadsThisMonth || 0 },
+            { "Métrica": "Proyección Crecimiento (%)", "Valor": `${projections.projectedGrowth || 0}%` },
         ];
 
         if (format === 'pdf') {
@@ -144,6 +149,17 @@ export async function POST(req: NextRequest) {
         ws['!cols'] = colWidths;
 
         xlsx.utils.book_append_sheet(wb, ws, "Base de Leads");
+
+        // Add Tags Density Sheet
+        if (tagsDensity && tagsDensity.length > 0) {
+            const labelsTags = tagsDensity.map((t: any) => ({
+                "Etiqueta": t.tag,
+                "Leads Asociados": t.count
+            }));
+            const wsTags = xlsx.utils.json_to_sheet(labelsTags);
+            wsTags['!cols'] = [{ wch: 30 }, { wch: 20 }];
+            xlsx.utils.book_append_sheet(wb, wsTags, "Densidad Etiquetas");
+        }
 
         const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
