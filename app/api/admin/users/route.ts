@@ -69,38 +69,54 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { username, password, role, isActive, metricsEnabled, canManageUsers, canEditTemplates, canExportData, parentId } = body;
+        const { accountType, email, username, password, role, isActive, metricsEnabled, canManageUsers, canEditTemplates, canExportData, parentId } = body;
 
-        if (!username || !password) {
-            return NextResponse.json({ error: "Usuario y contraseña son obligatorios" }, { status: 400 });
+        let finalUsername = username;
+        let finalEmail = email;
+
+        if (accountType === 'OWNER') {
+            if (!email || !password) {
+                return NextResponse.json({ error: "El correo y contraseña son obligatorios para cuenta principal" }, { status: 400 });
+            }
+            finalUsername = email; // Fallback username as email initially if needed, or null
+        } else {
+            if (!username || !password) {
+                return NextResponse.json({ error: "Usuario y contraseña son obligatorios" }, { status: 400 });
+            }
         }
 
-        const existingUser = await prisma.user.findUnique({
-            where: { username }
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { username: finalUsername },
+                    { email: finalEmail }
+                ]
+            }
         });
 
         if (existingUser) {
-            return NextResponse.json({ error: "El nombre de usuario ya está registrado" }, { status: 400 });
+            return NextResponse.json({ error: "El correo o nombre de usuario ya está registrado" }, { status: 400 });
         }
 
         const apiKey = `key_${Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)}`;
 
         const newUser = await prisma.user.create({
             data: {
-                username,
+                email: accountType === 'OWNER' ? finalEmail : null,
+                username: accountType === 'OWNER' ? null : finalUsername,
                 password, // Note: Should be hashed in prod
-                role: role || 'USER',
+                role: accountType === 'OWNER' ? 'ADMIN' : (role || 'USER'),
                 apiKey,
                 isActive: isActive ?? true,
                 metricsEnabled: metricsEnabled ?? false,
                 canManageUsers: canManageUsers ?? false,
                 canEditTemplates: canEditTemplates ?? false,
                 canExportData: canExportData ?? false,
-                parentId: parentId !== null ? parentId : userId // Assign the superadmin as the parent owner if null
+                parentId: accountType === 'OWNER' ? null : (parentId !== null && parentId !== '' ? parentId : userId)
             }
         });
 
-        // Create default Funnel for the new agent, associated to them
+        // Create default Funnel for the new agent/owner, associated to them
         await prisma.funnel.create({
             data: {
                 name: "Ventas por Defecto (Agente)",

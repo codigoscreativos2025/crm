@@ -178,7 +178,9 @@ export default function FunnelManager() {
                                         </div>
                                     ) : (
                                         <>
-                                            <span className="flex-1 text-gray-700 font-medium">{stage.name}</span>
+                                            <span className="flex-1 text-gray-700 font-medium">
+                                                {stage.name} <span className="text-xs text-gray-400 font-normal ml-2">(ID: {stage.id})</span>
+                                            </span>
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                                                 <button onClick={() => setEditingStage({ id: stage.id, name: stage.name })} className="text-blue-500 hover:bg-blue-50 p-1 rounded" title="Editar"><Edit className="h-4 w-4" /></button>
                                                 <button onClick={() => handleDeleteStage(stage.id)} className="text-red-500 hover:bg-red-50 p-1 rounded" title="Eliminar"><Trash className="h-4 w-4" /></button>

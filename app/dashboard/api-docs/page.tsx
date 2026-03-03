@@ -46,10 +46,10 @@ const endpoints = [
   },
   {
     method: 'PATCH',
-    path: '/api/contacts/{id}',
-    title: 'Actualizar Lead (Etapa, Embudo, Nombre, Pausar IA)',
-    description: 'Actualiza propiedades vitales de un Lead. Puedes moverlo de etapa, confirmar su nombre, o deshabilitar/habilitar temporalmente las respuestas de la IA.',
-    curl: `curl -X PATCH "https://crm.pivotsoluciones.com/api/contacts/12" \\
+    path: '/api/v1/contacts?phone={phone}',
+    title: 'Actualizar Lead (Etapa, Embudo, IA) vía API',
+    description: 'Actualiza propiedades vitales de un Lead desde integradores externos validando por su número telefónico y tu API Key pública.',
+    curl: `curl -X PATCH "https://crm.pivotsoluciones.com/api/v1/contacts?phone=5212345678&userApiKey=TU_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Juan Perez Confirmado",

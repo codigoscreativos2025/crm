@@ -92,6 +92,9 @@ export async function GET(req: NextRequest) {
                     include: {
                         contacts: {
                             select: {
+                                id: true,
+                                name: true,
+                                phone: true,
                                 createdAt: true,
                                 updatedAt: true,
                                 _count: {
@@ -112,6 +115,8 @@ export async function GET(req: NextRequest) {
             }
         });
 
+        const globalUnrepliedContacts: any[] = [];
+
         // Map funnel data for charts
         const funnelStats = funnels.map((f: any) => {
             let funnelTotal = 0;
@@ -129,6 +134,10 @@ export async function GET(req: NextRequest) {
                 let stageCRMMessages = 0;
                 let stageTotalConversationTime = 0;
                 let stageConversationCount = 0;
+                let stageTotalResTimeIA = 0;
+                let stageResCountIA = 0;
+                let stageTotalResTimeHuman = 0;
+                let stageResCountHuman = 0;
                 const stagePeakHoursArray = new Array(24).fill(0);
 
                 stage.contacts.forEach((contact: any) => {
@@ -137,8 +146,8 @@ export async function GET(req: NextRequest) {
                     stageTotalRetentionTime += retentionMs;
 
                     let lastInboundTime: Date | null = null;
-                    let firstMessageTime: Date | null = null;
-                    let lastMessageTime: Date | null = null;
+                    let previousMsgTime: Date | null = null;
+                    let contactEffectiveTime = 0;
 
                     contact.messages.forEach((msg: any) => {
                         const msgTime = new Date(msg.timestamp);
@@ -152,9 +161,14 @@ export async function GET(req: NextRequest) {
                             else stageCRMMessages++;
                         }
 
-                        // Conversation Duration Span
-                        if (!firstMessageTime) firstMessageTime = msgTime;
-                        lastMessageTime = msgTime;
+                        // Conversation Duration Span (Effective Session Time)
+                        if (previousMsgTime) {
+                            const diff = msgTime.getTime() - previousMsgTime.getTime();
+                            if (diff < 60 * 60 * 1000) { // If gap is less than 1 hour, aggregate
+                                contactEffectiveTime += diff;
+                            }
+                        }
+                        previousMsgTime = msgTime;
 
                         // Response time: Time between inbound message and the next outbound message
                         if (msg.direction === 'inbound') {
@@ -165,15 +179,35 @@ export async function GET(req: NextRequest) {
                             if (responseMs >= 0 && responseMs < 30 * 24 * 60 * 60 * 1000) {
                                 stageTotalResponseTime += responseMs;
                                 responsePairsCount++;
+
+                                if (msg.isFromIA) {
+                                    stageTotalResTimeIA += responseMs;
+                                    stageResCountIA++;
+                                } else {
+                                    stageTotalResTimeHuman += responseMs;
+                                    stageResCountHuman++;
+                                }
                             }
                             lastInboundTime = null; // Reset to look for next inbound
                         }
                     });
 
                     // Add Contact's overall Conversation Duration
-                    if (firstMessageTime !== null && lastMessageTime !== null && (firstMessageTime as Date).getTime() !== (lastMessageTime as Date).getTime()) {
-                        stageTotalConversationTime += ((lastMessageTime as Date).getTime() - (firstMessageTime as Date).getTime());
+                    if (contactEffectiveTime > 0) {
+                        stageTotalConversationTime += contactEffectiveTime;
                         stageConversationCount++;
+                    }
+
+                    // Extract Metadata for Unreplied Leads
+                    if (contact._count.messages > 0) {
+                        globalUnrepliedContacts.push({
+                            id: contact.id,
+                            name: contact.name,
+                            phone: contact.phone,
+                            funnelName: f.name,
+                            stageName: stage.name,
+                            timeInStage: Math.floor(retentionMs / (1000 * 60 * 60 * 24)) // days
+                        });
                     }
                 });
 
@@ -193,7 +227,11 @@ export async function GET(req: NextRequest) {
                     avgConversationLengthMins: Math.round(avgConversationLengthMins),
                     iaMessages: stageIAMessages,
                     crmMessages: stageCRMMessages,
-                    stagePeakHours: peakHoursMap
+                    stagePeakHours: peakHoursMap,
+                    _internalTotalResTimeIA: stageTotalResTimeIA,
+                    _internalResCountIA: stageResCountIA,
+                    _internalTotalResTimeHuman: stageTotalResTimeHuman,
+                    _internalResCountHuman: stageResCountHuman
                 };
             });
             return {
@@ -205,7 +243,6 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        // Compute peak hours
         const recentMessagesPeak = await prisma.message.findMany({
             where: { contact: { userId: ownerId }, timestamp: { gte: sevenDaysAgo } },
             select: { timestamp: true }
@@ -215,6 +252,46 @@ export async function GET(req: NextRequest) {
             peakHoursArray[m.timestamp.getHours()]++;
         });
         const peakHours = peakHoursArray.map((count, hour) => ({
+            hour: `${hour.toString().padStart(2, '0')}:00`,
+            count
+        }));
+
+        // Compute Weekly Peak Hours (Last 4 weeks)
+        const twentyEightDaysAgo = new Date();
+        twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 28);
+
+        const recentMessagesWeekly = await prisma.message.findMany({
+            where: { contact: { userId: ownerId }, timestamp: { gte: twentyEightDaysAgo } },
+            select: { timestamp: true }
+        });
+
+        const weeklyPeakArray = new Array(4).fill(0);
+        const nowMs = Date.now();
+        recentMessagesWeekly.forEach((m: any) => {
+            const diffDays = Math.floor((nowMs - m.timestamp.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays < 7) weeklyPeakArray[3]++;
+            else if (diffDays < 14) weeklyPeakArray[2]++;
+            else if (diffDays < 21) weeklyPeakArray[1]++;
+            else if (diffDays < 28) weeklyPeakArray[0]++;
+        });
+
+        const weeklyPeakHours = [
+            { week: 'Hace 3 Semanas', count: weeklyPeakArray[0] },
+            { week: 'Hace 2 Semanas', count: weeklyPeakArray[1] },
+            { week: 'Semana Pasada', count: weeklyPeakArray[2] },
+            { week: 'Esta Semana', count: weeklyPeakArray[3] }
+        ];
+
+        // Compute Unreplied Peak hours (Chats ignorados)
+        const unrepliedMessagesQuery = await prisma.message.findMany({
+            where: { contact: { userId: ownerId }, direction: 'inbound', isReadByAgent: false },
+            select: { timestamp: true }
+        });
+        const unrepliedPeakHoursArray = new Array(24).fill(0);
+        unrepliedMessagesQuery.forEach((m: any) => {
+            unrepliedPeakHoursArray[m.timestamp.getHours()]++;
+        });
+        const unrepliedPeakHours = unrepliedPeakHoursArray.map((count, hour) => ({
             hour: `${hour.toString().padStart(2, '0')}:00`,
             count
         }));
@@ -242,11 +319,25 @@ export async function GET(req: NextRequest) {
 
         let totalGlobalConversationTime = 0;
         let globalConversationCount = 0;
+        let totalGlobalResponseTimeIA = 0;
+        let globalResponseCountIA = 0;
+        let totalGlobalResponseTimeHuman = 0;
+        let globalResponseCountHuman = 0;
+
         funnelStats.forEach((f: any) => f.stages.forEach((s: any) => {
             totalGlobalConversationTime += s.avgConversationLengthMins * s.count;
             globalConversationCount += s.count;
+
+            // Reconstruct aggregates using the totals calculated before mapping
+            totalGlobalResponseTimeIA += s._internalTotalResTimeIA || 0;
+            globalResponseCountIA += s._internalResCountIA || 0;
+            totalGlobalResponseTimeHuman += s._internalTotalResTimeHuman || 0;
+            globalResponseCountHuman += s._internalResCountHuman || 0;
         }));
+
         const globalAvgConversationLengthMins = globalConversationCount > 0 ? Math.round(totalGlobalConversationTime / globalConversationCount) : 0;
+        const globalAvgResTimeIA = globalResponseCountIA > 0 ? Math.round((totalGlobalResponseTimeIA / globalResponseCountIA) / (1000 * 60)) : 0;
+        const globalAvgResTimeHuman = globalResponseCountHuman > 0 ? Math.round((totalGlobalResponseTimeHuman / globalResponseCountHuman) / (1000 * 60)) : 0;
 
         return NextResponse.json({
             kpis: {
@@ -256,6 +347,8 @@ export async function GET(req: NextRequest) {
                 unrepliedMessages,
                 newLeadsToday,
                 globalAvgConversationLengthMins,
+                globalAvgResTimeIA,
+                globalAvgResTimeHuman,
                 globalIAMessages,
                 globalCRMMessages
             },
@@ -264,6 +357,9 @@ export async function GET(req: NextRequest) {
             leadSources,
             funnelStats,
             peakHours,
+            weeklyPeakHours,
+            unrepliedPeakHours,
+            unrepliedLeadsList: globalUnrepliedContacts,
             recentMessages: formattedRecentMessages
         });
 

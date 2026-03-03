@@ -66,3 +66,88 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+
+// PATCH /api/v1/contacts?phone=...&userApiKey=...
+export async function PATCH(req: NextRequest) {
+    const { searchParams } = req.nextUrl;
+    const userApiKey = searchParams.get("userApiKey");
+    const phone = searchParams.get("phone");
+
+    if (!userApiKey) {
+        return NextResponse.json({ error: "userApiKey requerida" }, { status: 400 });
+    }
+
+    if (!phone) {
+        return NextResponse.json({ error: "phone requerido en la URL" }, { status: 400 });
+    }
+
+    const user = await authenticateApiKey(userApiKey);
+    if (!user) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    try {
+        const body = await req.json();
+        const { stageId, disableAI, name } = body;
+
+        const targetContact = await prisma.contact.findUnique({
+            where: {
+                userId_phone: {
+                    userId: user.id,
+                    phone: phone
+                }
+            }
+        });
+
+        if (!targetContact) {
+            return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
+        }
+
+        const updateData: any = {};
+
+        if (stageId !== undefined) {
+            // Verify stage belongs to this user's funnel
+            const stage = await prisma.stage.findFirst({
+                where: { id: stageId, funnel: { userId: user.parentId || user.id } }
+            });
+            if (!stage) {
+                return NextResponse.json({ error: "Etapa inválida o no pertenece al usuario" }, { status: 400 });
+            }
+            updateData.stageId = stageId;
+        }
+
+        if (name !== undefined) {
+            updateData.name = name;
+            updateData.nameConfirmed = true;
+        }
+
+        if (disableAI !== undefined) {
+            if (disableAI) {
+                const pauseTime = user.aiDeactivationMinutes || 60;
+                const until = new Date();
+                until.setMinutes(until.getMinutes() + pauseTime);
+                updateData.aiDisabledUntil = until;
+            } else {
+                updateData.aiDisabledUntil = null;
+            }
+        }
+
+        const updatedContact = await prisma.contact.update({
+            where: { id: targetContact.id },
+            data: updateData
+        });
+
+        return NextResponse.json({
+            id: updatedContact.id,
+            phone: updatedContact.phone,
+            name: updatedContact.name,
+            nameConfirmed: updatedContact.nameConfirmed,
+            aiDisabledUntil: updatedContact.aiDisabledUntil,
+            stageId: updatedContact.stageId
+        });
+
+    } catch (error) {
+        console.error("Error patching contact:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}

@@ -14,6 +14,9 @@ export default function MetricsDashboard() {
     const [stageLeads, setStageLeads] = useState<any[]>([]);
     const [stageLoading, setStageLoading] = useState(false);
     const [stageSearch, setStageSearch] = useState('');
+    const [showUnrepliedLeads, setShowUnrepliedLeads] = useState(false);
+    const [selectedFunnel, setSelectedFunnel] = useState<{ name: string, peakHours: any[] } | null>(null);
+    const [showWeeklyPeak, setShowWeeklyPeak] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
@@ -50,6 +53,31 @@ export default function MetricsDashboard() {
             console.error("Error fetching stage leads", err);
         } finally {
             setStageLoading(false);
+        }
+    };
+
+    const handleExport = async (format: 'pdf' | 'excel') => {
+        try {
+            const res = await fetch(`/api/metrics/export?format=${format}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kpis: data.kpis, funnelStats: data.funnelStats })
+            });
+            if (!res.ok) throw new Error('Export failed');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Reporte_Leads_CRM_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error("Error al exportar:", error);
+            // Replace native alert later if user wants
+            alert("Hubo un problema exportando los datos.");
         }
     };
 
@@ -95,10 +123,10 @@ export default function MetricsDashboard() {
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => window.open('/api/metrics/export?format=excel', '_blank')} className="bg-white border text-sm text-whatsapp-green font-medium border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm hover:bg-gray-50 transition">
+                                <button onClick={() => handleExport('excel')} className="bg-white border text-sm text-whatsapp-green font-medium border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm hover:bg-gray-50 transition">
                                     Exportar Excel
                                 </button>
-                                <button onClick={() => window.open('/api/metrics/export?format=pdf', '_blank')} className="bg-white border text-sm text-red-500 font-medium border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm hover:bg-gray-50 transition">
+                                <button onClick={() => handleExport('pdf')} className="bg-white border text-sm text-red-500 font-medium border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm hover:bg-gray-50 transition">
                                     Exportar PDF
                                 </button>
                                 <button className="bg-white border text-sm text-gray-600 border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm">
@@ -140,9 +168,12 @@ export default function MetricsDashboard() {
                             </div>
 
                             {/* Card 3 */}
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
+                            <div
+                                onClick={() => setShowUnrepliedLeads(true)}
+                                className="bg-white p-5 rounded-2xl shadow-sm border border-red-200 hover:border-red-400 cursor-pointer flex flex-col justify-between h-36 transition"
+                            >
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Sin respuesta</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Sin respuesta (Ver)</span>
                                     <div className="p-1.5 bg-red-50 text-red-500 rounded-md">
                                         <AlertTriangle className="h-4 w-4" />
                                     </div>
@@ -170,28 +201,28 @@ export default function MetricsDashboard() {
                             {/* Card 5 - Respuestas IA */}
                             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Respuestas IA</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">T. de Respuesta (IA)</span>
                                     <div className="p-1.5 bg-blue-50 text-blue-500 rounded-md">
                                         <MessageSquare className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-bold text-blue-600">{data.kpis.globalIAMessages.toLocaleString()}</h3>
-                                    <p className="text-[10px] text-gray-400 mt-1">Vía Automatización</p>
+                                    <h3 className="text-3xl font-bold text-blue-600">{data.kpis.globalAvgResTimeIA}m</h3>
+                                    <p className="text-[10px] text-gray-400 mt-1">Prom. vel. IA ({data.kpis.globalIAMessages.toLocaleString()} msgs)</p>
                                 </div>
                             </div>
 
                             {/* Card 6 - Respuestas CRM */}
                             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-36">
                                 <div className="flex justify-between items-start">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">Respuestas Agente</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-tight">T. de Respuesta (Humano)</span>
                                     <div className="p-1.5 bg-indigo-50 text-indigo-500 rounded-md">
                                         <MessageSquare className="h-4 w-4" />
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-bold text-indigo-600">{data.kpis.globalCRMMessages.toLocaleString()}</h3>
-                                    <p className="text-[10px] text-gray-400 mt-1">Agentes Humanos</p>
+                                    <h3 className="text-3xl font-bold text-indigo-600">{data.kpis.globalAvgResTimeHuman}m</h3>
+                                    <p className="text-[10px] text-gray-400 mt-1">Prom. vel. agentes ({data.kpis.globalCRMMessages.toLocaleString()} msgs)</p>
                                 </div>
                             </div>
                         </div>
@@ -204,23 +235,37 @@ export default function MetricsDashboard() {
                                 {/* Performance & Trends */}
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                     <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-lg font-bold text-gray-800">Horas Pico de Actividad (Últimos 7 Días)</h3>
+                                        <h3 className="text-lg font-bold text-gray-800">
+                                            {showWeeklyPeak ? 'Actividad por Semanas (Últimas 4 Semanas)' : 'Horas Pico de Actividad (Últimos 7 Días)'}
+                                        </h3>
+                                        <button onClick={() => setShowWeeklyPeak(!showWeeklyPeak)} className="text-sm text-whatsapp-green font-medium hover:text-green-600 transition">
+                                            Ver {showWeeklyPeak ? 'Horas (24h)' : 'Semanas (Histórico)'}
+                                        </button>
                                     </div>
 
                                     <div className="h-[250px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={data.peakHours}>
-                                                <defs>
-                                                    <linearGradient id="colorPeak" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
-                                                        <stop offset="95%" stopColor="#25D366" stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                                                <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
-                                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                                <Area type="monotone" dataKey="count" stroke="#25D366" strokeWidth={3} fillOpacity={1} fill="url(#colorPeak)" />
-                                            </AreaChart>
+                                            {showWeeklyPeak ? (
+                                                <BarChart data={data.weeklyPeakHours}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                                                    <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
+                                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                    <Bar dataKey="count" fill="#25D366" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                </BarChart>
+                                            ) : (
+                                                <AreaChart data={data.peakHours}>
+                                                    <defs>
+                                                        <linearGradient id="colorPeak" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
+                                                            <stop offset="95%" stopColor="#25D366" stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                                                    <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
+                                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                    <Area type="monotone" dataKey="count" stroke="#25D366" strokeWidth={3} fillOpacity={1} fill="url(#colorPeak)" />
+                                                </AreaChart>
+                                            )}
                                         </ResponsiveContainer>
                                     </div>
                                 </div>
@@ -328,7 +373,27 @@ export default function MetricsDashboard() {
                                         {data.funnelStats.map((funnel: any, idx: number) => (
                                             <div key={idx} className="border border-gray-100 p-4 rounded-xl bg-gray-50/50">
                                                 <div className="flex justify-between items-center mb-4">
-                                                    <h4 className="font-bold text-gray-800">{funnel.name}</h4>
+                                                    <div className="flex items-center gap-3">
+                                                        <h4 className="font-bold text-gray-800">
+                                                            {funnel.name}
+                                                        </h4>
+                                                        <button
+                                                            onClick={() => {
+                                                                const agg = new Array(24).fill(0);
+                                                                funnel.stages.forEach((s: any) => {
+                                                                    s.stagePeakHours.forEach((ph: any) => {
+                                                                        const hrIdx = parseInt(ph.hour.split(':')[0]);
+                                                                        agg[hrIdx] += ph.count;
+                                                                    });
+                                                                });
+                                                                const peakAgg = agg.map((c, hr) => ({ hour: `${hr.toString().padStart(2, '0')}:00`, count: c }));
+                                                                setSelectedFunnel({ name: funnel.name, peakHours: peakAgg });
+                                                            }}
+                                                            className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold hover:bg-gray-200 transition"
+                                                        >
+                                                            Ver Gráfica
+                                                        </button>
+                                                    </div>
                                                     <span className="bg-whatsapp-green text-white text-xs px-2 py-1 rounded-full font-bold">
                                                         {funnel.totalLeads} Leads
                                                     </span>
@@ -501,8 +566,129 @@ export default function MetricsDashboard() {
                                 </div>
                             </div>
                         )}
+
+                        {/* Modal para Horas Pico a nivel Embudo */}
+                        {selectedFunnel && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                                <div className="bg-white max-w-2xl w-full rounded-xl shadow-xl overflow-hidden flex flex-col">
+                                    <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                                        <div>
+                                            <h2 className="text-xl font-bold text-gray-900">Horas de Mayor Actividad</h2>
+                                            <p className="text-sm text-gray-500 mt-1">Embudo: {selectedFunnel.name}</p>
+                                        </div>
+                                        <button onClick={() => setSelectedFunnel(null)} className="text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition">
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                    <div className="p-6 h-[300px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={selectedFunnel.peakHours}>
+                                                <defs>
+                                                    <linearGradient id="colorFunnelPeak" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#003366" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#003366" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                                                <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                <Area type="monotone" dataKey="count" stroke="#003366" strokeWidth={3} fillOpacity={1} fill="url(#colorFunnelPeak)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal Leads Sin Respuesta */}
+                        {showUnrepliedLeads && (
+                            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 overflow-y-auto">
+                                <div className="bg-white max-w-4xl w-full m-4 rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+                                    <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                                        <div>
+                                            <h2 className="text-xl font-bold text-gray-900 text-red-600 flex items-center gap-2">
+                                                <AlertTriangle className="h-6 w-6" /> Leads Sin Respuesta
+                                            </h2>
+                                            <p className="text-sm text-gray-500 mt-1">Total: {data.unrepliedLeadsList?.length || 0} contactos esperando acción</p>
+                                        </div>
+                                        <button onClick={() => setShowUnrepliedLeads(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition">
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                    <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col md:flex-row items-center gap-4">
+                                        <div className="relative w-full md:w-1/3">
+                                            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <input
+                                                type="text"
+                                                placeholder="Filtrar por nombre, embudo o etapa..."
+                                                className="pl-9 pr-4 py-2 w-full bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-red-400 transition"
+                                                value={stageSearch}
+                                                onChange={(e) => setStageSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="w-full md:w-2/3 h-[90px] flex items-center gap-2">
+                                            <div className="flex-1 h-full bg-white border border-red-100 rounded-lg p-2">
+                                                <div className="text-[10px] font-bold text-red-500 mb-1 ml-1 uppercase tracking-wider">Acumulación de Horas de Chats Ignorados</div>
+                                                <ResponsiveContainer width="100%" height="80%">
+                                                    <AreaChart data={data.unrepliedPeakHours || []} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                                                        <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#ef4444' }} />
+                                                        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '4px', border: 'none', fontSize: '11px', padding: '4px 8px' }} />
+                                                        <Area type="monotone" dataKey="count" stroke="#ef4444" strokeWidth={2} fillOpacity={0.2} fill="#ef4444" />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-y-auto p-0 flex-1">
+                                        <table className="w-full text-left text-sm text-gray-600">
+                                            <thead className="bg-gray-50 sticky top-0 text-xs uppercase tracking-wider text-gray-500 z-10 shadow-sm border-b border-gray-100">
+                                                <tr>
+                                                    <th className="p-4 font-semibold">Contacto</th>
+                                                    <th className="p-4 font-semibold">Embudo / Etapa</th>
+                                                    <th className="p-4 font-semibold text-center">Espera</th>
+                                                    <th className="p-4 font-semibold text-center">Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {(data.unrepliedLeadsList || [])
+                                                    .filter((l: any) => (l.name || l.phone || l.funnelName || l.stageName).toLowerCase().includes(stageSearch.toLowerCase()))
+                                                    // Inherent grouping by sorting by Funnel and Stage
+                                                    .sort((a: any, b: any) => a.funnelName.localeCompare(b.funnelName) || a.stageName.localeCompare(b.stageName))
+                                                    .map((lead: any) => (
+                                                        <tr key={lead.id} className="hover:bg-red-50/50 transition-colors">
+                                                            <td className="p-4 font-medium text-gray-900 border-l-4 border-red-500">
+                                                                {lead.name || 'Sin Nombre'}
+                                                                <span className="block text-xs text-gray-400">{lead.phone}</span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className="font-bold text-gray-700">{lead.funnelName}</span>
+                                                                <span className="block text-xs text-gray-500">{lead.stageName}</span>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <div className="text-red-600 font-bold">{lead.timeInStage} días</div>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <Link href={`/dashboard/chat/${lead.id}`} className="text-whatsapp-green font-medium hover:underline text-sm flex justify-center items-center gap-1">
+                                                                    <MessageSquare className="h-3 w-3" /> Responder
+                                                                </Link>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                {(!data.unrepliedLeadsList || data.unrepliedLeadsList.length === 0) && (
+                                                    <tr>
+                                                        <td colSpan={4} className="p-8 text-center text-gray-500">No hay leads pendientes de respuesta.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* End of render scope */}
-                    </>)
+                    </>
+                )
             })()}
         </div>
     );

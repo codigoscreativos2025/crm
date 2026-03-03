@@ -38,10 +38,9 @@ export default function AdminUsersPage() {
         disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
     });
 
-    // New User Form
     const [showNewUserModal, setShowNewUserModal] = useState(false);
     const [newUserForm, setNewUserForm] = useState({
-        username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
+        accountType: 'AGENT', email: '', username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
         canManageUsers: false, canEditTemplates: false, canExportData: false, parentId: ''
     });
     const [creatingUser, setCreatingUser] = useState(false);
@@ -202,7 +201,7 @@ export default function AdminUsersPage() {
             if (res.ok) {
                 setShowNewUserModal(false);
                 setNewUserForm({
-                    username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
+                    accountType: 'AGENT', email: '', username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
                     canManageUsers: false, canEditTemplates: false, canExportData: false, parentId: ''
                 });
                 fetchUsers();
@@ -239,7 +238,7 @@ export default function AdminUsersPage() {
                         onClick={() => setShowNewUserModal(true)}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition shadow-sm text-sm flex items-center gap-2"
                     >
-                        <Plus className="h-4 w-4" /> Nuevo Agente
+                        <Plus className="h-4 w-4" /> Nuevo Usuario
                     </button>
                     <button
                         onClick={() => setShowTemplates(!showTemplates)}
@@ -262,28 +261,53 @@ export default function AdminUsersPage() {
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Agente</h2>
+                            <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Usuario</h2>
                             <button onClick={() => setShowNewUserModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
                         </div>
                         <div className="p-6 overflow-y-auto">
                             <form id="new-user-form" onSubmit={handleCreateUser} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de Usuario (Para logueo)</label>
-                                    <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({ ...newUserForm, username: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="ej. analista01" />
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Cuenta</label>
+                                    <div className="flex gap-4 mt-2">
+                                        <label className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                                            <input type="radio" value="OWNER" className="cursor-pointer" checked={newUserForm.accountType === 'OWNER'} onChange={() => setNewUserForm({ ...newUserForm, accountType: 'OWNER', role: 'ADMIN', parentId: '' })} />
+                                            Dueño (Principal)
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                                            <input type="radio" value="AGENT" className="cursor-pointer" checked={newUserForm.accountType === 'AGENT'} onChange={() => setNewUserForm({ ...newUserForm, accountType: 'AGENT', role: 'USER' })} />
+                                            Agente (Sub-cuenta)
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Padre (Empresa Asociada)</label>
-                                    <select
-                                        value={newUserForm.parentId}
-                                        onChange={e => setNewUserForm({ ...newUserForm, parentId: e.target.value })}
-                                        className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500"
-                                    >
-                                        <option value="">Cuenta Propia (Ninguna)</option>
-                                        {users.filter(u => u.email).map(u => (
-                                            <option key={u.id} value={u.id}>{u.email}</option>
-                                        ))}
-                                    </select>
-                                </div>
+
+                                {newUserForm.accountType === 'OWNER' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico (Dueño)</label>
+                                        <input type="email" required value={newUserForm.email} onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="ej. admin@empresa.com" />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de Usuario (Para logueo)</label>
+                                        <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({ ...newUserForm, username: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="ej. analista01" />
+                                    </div>
+                                )}
+
+                                {newUserForm.accountType === 'AGENT' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Padre (Empresa Asociada)</label>
+                                        <select
+                                            value={newUserForm.parentId}
+                                            onChange={e => setNewUserForm({ ...newUserForm, parentId: e.target.value })}
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500"
+                                        >
+                                            <option value="">Cuenta Propia (Ninguna)</option>
+                                            {users.filter(u => u.email).map(u => (
+                                                <option key={u.id} value={u.id}>{u.email}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña de Acceso</label>
                                     <input type="password" required minLength={6} value={newUserForm.password} onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 outline-none focus:border-purple-500" placeholder="Mínimo 6 caracteres" />
@@ -325,7 +349,7 @@ export default function AdminUsersPage() {
                         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 mb-0 flex justify-end gap-3">
                             <button type="button" onClick={() => setShowNewUserModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">Cancelar</button>
                             <button type="submit" form="new-user-form" disabled={creatingUser} className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2">
-                                {creatingUser ? 'Procesando...' : <><Save className="h-4 w-4" /> Guardar Agente</>}
+                                {creatingUser ? 'Procesando...' : <><Save className="h-4 w-4" /> Guardar Usuario</>}
                             </button>
                         </div>
                     </div>
