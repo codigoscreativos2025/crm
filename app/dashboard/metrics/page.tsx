@@ -15,6 +15,7 @@ export default function MetricsDashboard() {
     const [stageLoading, setStageLoading] = useState(false);
     const [stageSearch, setStageSearch] = useState('');
     const [showUnrepliedLeads, setShowUnrepliedLeads] = useState(false);
+    const [showAIDisabledLeads, setShowAIDisabledLeads] = useState(false);
     const [selectedFunnel, setSelectedFunnel] = useState<{ name: string, peakHours: any[] } | null>(null);
     const [showWeeklyPeak, setShowWeeklyPeak] = useState(false);
     const router = useRouter();
@@ -188,7 +189,6 @@ export default function MetricsDashboard() {
                                 </div>
                             </div>
 
-                            {/* Card 3 */}
                             <div
                                 onClick={() => setShowUnrepliedLeads(true)}
                                 className="bg-red-50 p-5 rounded-2xl shadow-[0_0_0_1px_rgba(239,68,68,0.2)] cursor-pointer flex flex-col justify-between h-36 transition"
@@ -202,6 +202,23 @@ export default function MetricsDashboard() {
                                 <div>
                                     <h3 className="text-4xl font-bold text-gray-900">{data.kpis.unrepliedMessages.toLocaleString()}</h3>
                                     <p className="text-[12px] text-red-600 font-medium mt-1">Action Required (Click ver)</p>
+                                </div>
+                            </div>
+
+                            {/* Card 4 - IA Pausada */}
+                            <div
+                                onClick={() => setShowAIDisabledLeads(true)}
+                                className="bg-yellow-50 p-5 rounded-2xl shadow-[0_0_0_1px_rgba(234,179,8,0.2)] cursor-pointer flex flex-col justify-between h-36 transition"
+                            >
+                                <div className="flex justify-between items-start">
+                                    <span className="text-xs font-bold text-yellow-700 uppercase tracking-tight">IA Desactivada</span>
+                                    <div className="p-1 bg-white text-yellow-500 rounded-md shadow-sm">
+                                        <AlertTriangle className="h-3 w-3" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="text-4xl font-bold text-gray-900">{data.kpis.totalAIDisabledCount?.toLocaleString() || '0'}</h3>
+                                    <p className="text-[12px] text-yellow-600 font-medium mt-1">En atencion manual (Click ver)</p>
                                 </div>
                             </div>
 
@@ -629,6 +646,67 @@ export default function MetricsDashboard() {
                                                     )}
                                                 </tbody>
                                             </table>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal para Leads con IA Desactivada */}
+                        {showAIDisabledLeads && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                                <div className="bg-white max-w-4xl w-full rounded-2xl shadow-2xl p-6 relative max-h-[90vh] flex flex-col">
+                                    <button onClick={() => setShowAIDisabledLeads(false)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 p-2 rounded-full transition">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                    <div className="mb-6">
+                                        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                            <AlertTriangle className="h-6 w-6 text-yellow-500" /> Leads con Inteligencia Artificial Pausada
+                                        </h2>
+                                        <p className="text-sm text-gray-500 mt-1">Contactos que actualmente están siendo atendidos por un agente humano.</p>
+                                    </div>
+
+                                    {/* Lista de Leads con IA Pausada */}
+                                    <div className="flex-1 overflow-y-auto min-h-[300px] border border-gray-200 rounded-xl bg-gray-50">
+                                        {data.aiDisabledLeadsList && data.aiDisabledLeadsList.length > 0 ? (
+                                            <table className="w-full text-left text-sm text-gray-600">
+                                                <thead className="bg-gray-100 sticky top-0 text-xs uppercase tracking-wider text-gray-500 z-10">
+                                                    <tr>
+                                                        <th className="p-4 font-semibold">Lead</th>
+                                                        <th className="p-4 font-semibold">Ubicación</th>
+                                                        <th className="p-4 font-semibold text-center">Desactivada Hasta</th>
+                                                        <th className="p-4 font-semibold text-center">Acción</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {data.aiDisabledLeadsList.map((lead: any) => (
+                                                        <tr key={lead.id} className="hover:bg-gray-100 transition-colors">
+                                                            <td className="p-4 font-medium text-gray-900">
+                                                                {lead.name || lead.phone}
+                                                                <span className="block text-xs text-gray-500 font-normal">{lead.phone}</span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className="block font-medium text-gray-700">{lead.funnelName}</span>
+                                                                <span className="text-xs px-2 py-0.5 mt-1 inline-block rounded-full bg-blue-50 text-blue-700 border border-blue-200">{lead.stageName}</span>
+                                                            </td>
+                                                            <td className="p-4 text-center font-medium text-yellow-600">
+                                                                {new Date(lead.disabledUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hrs
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <Link href={`/dashboard/chat/${lead.id}`} className="bg-whatsapp-green hover:bg-whatsapp-teal text-white px-3 py-1.5 rounded-lg font-medium transition inline-flex items-center gap-1 shadow-sm">
+                                                                    <MessageSquare className="h-3 w-3" /> Ver Chat
+                                                                </Link>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                                                <AlertTriangle className="h-12 w-12 text-yellow-200 mb-3" />
+                                                <h3 className="text-lg font-medium text-gray-900">No hay leads con IA pausada</h3>
+                                                <p className="text-sm text-gray-500 mt-1">Todos los leads están en modo automático en este momento.</p>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

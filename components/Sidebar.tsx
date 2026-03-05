@@ -77,7 +77,7 @@ export default function Sidebar() {
     }, []);
 
     const handleLogout = async () => {
-        await signOut({ callbackUrl: 'https://crm.pivotsoluciones.com' });
+        await signOut({ callbackUrl: '/login' });
     };
 
     // Filtros
@@ -151,7 +151,7 @@ export default function Sidebar() {
                     </div>
 
                     <select
-                        className="w-full p-1 text-sm border rounded text-gray-700"
+                        className="w-full p-1 text-sm border rounded text-gray-700 mb-2 md:mb-0"
                         value={selectedFunnel}
                         onChange={(e) => {
                             setSelectedFunnel(e.target.value === 'all' ? 'all' : Number(e.target.value));
@@ -159,21 +159,27 @@ export default function Sidebar() {
                         }}
                     >
                         <option value="all">Todos los Embudos</option>
-                        {funnels.map(f => (
-                            <option key={f.id} value={f.id}>{f.name}</option>
-                        ))}
+                        {funnels.map(f => {
+                            const count = contacts.filter(c => c.stage && c.stage.funnelId === f.id).length;
+                            return (
+                                <option key={f.id} value={f.id}>{f.name} ({count})</option>
+                            );
+                        })}
                     </select>
 
                     {selectedFunnel !== 'all' && (
                         <select
-                            className="w-full p-1 text-sm border rounded text-gray-700"
+                            className="w-full p-1 text-sm border rounded text-gray-700 mt-2"
                             value={selectedStage}
                             onChange={(e) => setSelectedStage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                         >
                             <option value="all">Todas las Etapas</option>
-                            {activeStages.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
+                            {activeStages.map(s => {
+                                const count = contacts.filter(c => c.stageId === s.id).length;
+                                return (
+                                    <option key={s.id} value={s.id}>{s.name} ({count})</option>
+                                );
+                            })}
                         </select>
                     )}
                 </div>

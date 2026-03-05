@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         const userId = parseInt(session.user.id);
         const currentUser = await prisma.user.findUnique({
             where: { id: userId },
-            select: { parentId: true }
+            select: { parentId: true, aiDeactivationMinutes: true }
         });
         const ownerId = currentUser?.parentId || userId;
 
@@ -103,6 +103,16 @@ export async function POST(req: NextRequest) {
                 fileName,
                 isReadByAgent: true, // Agent is actively sending this from the UI
             },
+        });
+
+        // Auto-pause AI for this contact since a human replied
+        const pauseTime = currentUser?.aiDeactivationMinutes || 60;
+        const until = new Date();
+        until.setMinutes(until.getMinutes() + pauseTime);
+
+        await prisma.contact.update({
+            where: { id: parseInt(contactId) },
+            data: { aiDisabledUntil: until }
         });
 
         // Trigger n8n Webhook (Fire and Forget)

@@ -62,6 +62,16 @@ export async function POST(req: NextRequest) {
             },
         });
 
+        // 4. Mark all previous inbound messages as read since AI responded
+        await prisma.message.updateMany({
+            where: {
+                contactId: contact.id,
+                direction: 'inbound',
+                isReadByAgent: false
+            },
+            data: { isReadByAgent: true }
+        });
+
         return NextResponse.json({ success: true, messageId: newMessage.id });
     } catch (error) {
         console.error("Error in outgoing webhook:", error);

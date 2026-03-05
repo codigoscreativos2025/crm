@@ -47,7 +47,7 @@ export default async function ProfilePage() {
                     </div>
 
                     <h3 className="text-lg font-medium text-gray-700 mb-4">Cambiar Contraseña</h3>
-                    <ProfileForm />
+                    <ProfileForm user={user} />
                 </div>
             </div>
         </div>

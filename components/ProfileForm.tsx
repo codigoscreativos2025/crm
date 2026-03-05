@@ -9,7 +9,7 @@ interface Funnel {
     stages?: { id: number, name: string }[];
 }
 
-export default function ProfileForm() {
+export default function ProfileForm({ user }: { user?: any }) {
     const [password, setPassword] = useState('');
     const [confirm, setConfirm] = useState('');
     const [msg, setMsg] = useState('');
@@ -18,10 +18,10 @@ export default function ProfileForm() {
 
     // Funnel Config State
     const [funnels, setFunnels] = useState<Funnel[]>([]);
-    const [defaultFunnelId, setDefaultFunnelId] = useState<string>('');
-    const [defaultStageId, setDefaultStageId] = useState<string>('');
-    const [aiDeactivationMinutes, setAiDeactivationMinutes] = useState<number>(60);
-    const [loadedFunnel, setLoadedFunnel] = useState(false);
+    const [defaultFunnelId, setDefaultFunnelId] = useState<string>(user?.defaultFunnelId ? String(user.defaultFunnelId) : '');
+    const [defaultStageId, setDefaultStageId] = useState<string>(user?.defaultStageId ? String(user.defaultStageId) : '');
+    const [aiDeactivationMinutes, setAiDeactivationMinutes] = useState<number>(user?.aiDeactivationMinutes ? Number(user.aiDeactivationMinutes) : 60);
+    const [loadedFunnel, setLoadedFunnel] = useState(true);
 
     useEffect(() => {
         // Obtenemos los embudos del usuario
@@ -31,20 +31,6 @@ export default function ProfileForm() {
                 if (Array.isArray(data)) setFunnels(data);
             })
             .catch(err => console.error(err));
-
-        // Obtener el config actual de funnel (simulando desde sesión o un endpoint rápido)
-        // Para esto necesitamos que un endpoint devuelva los datos del perfil
-        fetch('/api/auth/session') // NextAuth expone la sesión
-            .then(res => res.json())
-            .then(data => {
-                if (data?.user) {
-                    if (data.user.defaultFunnelId) setDefaultFunnelId(String(data.user.defaultFunnelId));
-                    if (data.user.defaultStageId) setDefaultStageId(String(data.user.defaultStageId));
-                    if (data.user.aiDeactivationMinutes) setAiDeactivationMinutes(Number(data.user.aiDeactivationMinutes));
-                }
-                setLoadedFunnel(true);
-            })
-            .catch(() => setLoadedFunnel(true));
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {

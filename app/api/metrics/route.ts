@@ -141,6 +141,7 @@ export async function GET(req: NextRequest) {
                                         }
                                     }
                                 },
+                                aiDisabledUntil: true,
                                 messages: {
                                     select: { timestamp: true, direction: true, isFromIA: true },
                                     orderBy: { timestamp: 'asc' }
@@ -169,6 +170,8 @@ export async function GET(req: NextRequest) {
         }));
 
         const globalUnrepliedContacts: any[] = [];
+        const globalAIDisabledContacts: any[] = [];
+        let totalAIDisabledCount = 0;
 
         // Map funnel data for charts
         const funnelStats = funnels.map((f: any) => {
@@ -260,6 +263,19 @@ export async function GET(req: NextRequest) {
                             funnelName: f.name,
                             stageName: stage.name,
                             timeInStage: Math.floor(retentionMs / (1000 * 60 * 60 * 24)) // days
+                        });
+                    }
+
+                    // Extract Metadata for AI Disabled Leads
+                    if (contact.aiDisabledUntil && new Date(contact.aiDisabledUntil).getTime() > now.getTime()) {
+                        totalAIDisabledCount++;
+                        globalAIDisabledContacts.push({
+                            id: contact.id,
+                            name: contact.name,
+                            phone: contact.phone,
+                            funnelName: f.name,
+                            stageName: stage.name,
+                            disabledUntil: contact.aiDisabledUntil
                         });
                     }
                 });
@@ -416,7 +432,8 @@ export async function GET(req: NextRequest) {
                 globalAvgResTimeIA,
                 globalAvgResTimeHuman,
                 globalIAMessages,
-                globalCRMMessages
+                globalCRMMessages,
+                totalAIDisabledCount
             },
             leadsTrend,
             leadInflow,
@@ -428,6 +445,7 @@ export async function GET(req: NextRequest) {
             weeklyPeakHours,
             unrepliedPeakHours,
             unrepliedLeadsList: globalUnrepliedContacts,
+            aiDisabledLeadsList: globalAIDisabledContacts,
             recentMessages: formattedRecentMessages,
             projections
         });

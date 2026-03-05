@@ -46,9 +46,12 @@ export default function ChatPage() {
     const [showSearch, setShowSearch] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showEmoji, setShowEmoji] = useState(false);
+    const [timeLeftAIPaused, setTimeLeftAIPaused] = useState<string | null>(null);
+    const [editingName, setEditingName] = useState(false);
+    const [tempName, setTempName] = useState('');
 
     // Quick Replies Templates
-    const [templates, setTemplates] = useState<{ id: number, name: string, content: string }[]>([]);
+    const [templates, setTemplates] = useState<any[]>([]);
     const [showTemplatePopover, setShowTemplatePopover] = useState(false);
     const [templateFilter, setTemplateFilter] = useState('');
 
@@ -62,7 +65,7 @@ export default function ChatPage() {
     const [allContacts, setAllContacts] = useState<any[]>([]);
     const { showAlert, showConfirm } = useAlert();
     const [forwardSearch, setForwardSearch] = useState('');
-    const [timeLeftAIPaused, setTimeLeftAIPaused] = useState<string | null>(null);
+
     const isSelectionMode = selectedMessages.length > 0;
 
     // UI Enhancements
@@ -260,16 +263,18 @@ export default function ChatPage() {
         }
     };
 
-    const confirmContactName = async () => {
+    const confirmContactName = async (newName?: string) => {
         if (!contact) return;
+        const nameToSave = newName || contact.name;
         try {
             const res = await fetch(`/api/contacts/${contact.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: contact.name }) // Triggers nameConfirmed update
+                body: JSON.stringify({ name: nameToSave })
             });
             if (res.ok) {
-                setContact({ ...contact, nameConfirmed: true });
+                setContact({ ...contact, name: nameToSave, nameConfirmed: true });
+                setEditingName(false);
             }
         } catch (error) {
             console.error("Error confirming name", error);
@@ -689,12 +694,34 @@ export default function ChatPage() {
                 <div className="flex-1 flex flex-col h-full relative">
                     {contact && contact.nameConfirmed === false && (
                         <div className="bg-yellow-50 text-yellow-800 px-4 py-2 flex items-center justify-between text-sm shadow-sm border-b border-yellow-200 z-10 shrink-0">
-                            <div className="flex items-center gap-2">
-                                <span>¿El nombre del prospecto es <b>{contact?.name}</b>?</span>
-                            </div>
-                            <button onClick={confirmContactName} className="bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded font-medium transition cursor-pointer">
-                                Confirmar Nombre
-                            </button>
+                            {editingName ? (
+                                <div className="flex items-center gap-2 w-full">
+                                    <input
+                                        type="text"
+                                        className="border-b border-yellow-400 bg-transparent outline-none flex-1 font-bold text-yellow-900 placeholder-yellow-600/50"
+                                        value={tempName}
+                                        onChange={e => setTempName(e.target.value)}
+                                        autoFocus
+                                        onKeyDown={(e) => e.key === 'Enter' && confirmContactName(tempName)}
+                                    />
+                                    <button onClick={() => confirmContactName(tempName)} className="bg-whatsapp-green hover:bg-whatsapp-teal text-white px-2 py-1 rounded font-medium text-xs transition cursor-pointer">Guardar</button>
+                                    <button onClick={() => setEditingName(false)} className="text-yellow-700 hover:text-yellow-900 p-1 font-bold">✕</button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2">
+                                        <span>¿El nombre del prospecto es <b>{contact?.name}</b>?</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setTempName(contact?.name || ''); setEditingName(true); }} className="bg-white hover:bg-gray-100 text-yellow-900 px-3 py-1 rounded font-medium transition cursor-pointer text-xs border border-yellow-200">
+                                            Editar
+                                        </button>
+                                        <button onClick={() => confirmContactName(contact?.name || '')} className="bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded font-medium transition cursor-pointer text-xs">
+                                            Confirmar
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -823,7 +850,12 @@ export default function ChatPage() {
                                                     {safelyFormatTime(msg.timestamp)}
                                                 </span>
                                                 {msg.direction === 'outbound' && (
-                                                    <span className="text-blue-500 text-[11px] ml-0.5">✓✓</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[9px] text-gray-400 dark:text-gray-500 uppercase">
+                                                            {msg.isFromIA ? 'API (IA)' : 'CRM (Humano)'}
+                                                        </span>
+                                                        <span className="text-blue-500 text-[11px] ml-0.5">✓✓</span>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
