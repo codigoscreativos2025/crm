@@ -110,10 +110,31 @@ export async function POST(req: NextRequest) {
         const until = new Date();
         until.setMinutes(until.getMinutes() + pauseTime);
 
+        // Calculate if we need to insert a system message for AI_DISABLED
+        // If it was already disabled, skip adding noise, or add it anyway to update the expiration.
+        // We will just add it if contact.aiDisabledUntil is invalid or in the past
+        let shouldLogDisable = false;
+        if (!contact.aiDisabledUntil || new Date(contact.aiDisabledUntil).getTime() < Date.now()) {
+            shouldLogDisable = true;
+        }
+
         await prisma.contact.update({
             where: { id: parseInt(contactId) },
             data: { aiDisabledUntil: until }
         });
+
+        if (shouldLogDisable) {
+            await prisma.message.create({
+                data: {
+                    body: "IA_DISABLED",
+                    direction: "system",
+                    status: "sent",
+                    contactId: parseInt(contactId),
+                    fileName: until.toISOString(), // Store the exact expiration time here
+                    isReadByAgent: true,
+                }
+            });
+        }
 
         // Trigger n8n Webhook (Fire and Forget)
         const userWithWebhook = await prisma.user.findUnique({

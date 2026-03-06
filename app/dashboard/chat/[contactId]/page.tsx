@@ -14,13 +14,15 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
 interface Message {
     id: number;
     body: string;
-    direction: 'inbound' | 'outbound';
+    direction: 'inbound' | 'outbound' | 'system';
     status: string;
     timestamp: string;
     fileUrl?: string | null;
     fileType?: string | null;
     fileName?: string | null;
     isReadByAgent?: boolean;
+    isFromIA?: boolean;
+    isVirtual?: boolean;
 }
 
 interface Contact {
@@ -357,7 +359,41 @@ export default function ChatPage() {
                 if (resMsgs.ok) {
                     const data = await resMsgs.json();
                     if (Array.isArray(data)) {
-                        setMessages(data);
+                        // Separate actual messages and add virtual ones for AI status tracking
+                        const augmentedMessages: any[] = [];
+                        let lastDisabledExpiration: Date | null = null;
+
+                        data.forEach((msg, index) => {
+                            augmentedMessages.push(msg);
+
+                            if (msg.direction as string === 'system' && msg.body === 'IA_DISABLED' && msg.fileName) {
+                                lastDisabledExpiration = new Date(msg.fileName);
+                            } else if (msg.direction as string === 'system' && msg.body === 'IA_ENABLED') {
+                                lastDisabledExpiration = null;
+                            }
+
+                            // If we have a pending expiration, and the NEXT message happens AFTER the expiration
+                            // OR this is the last message and the expiration is already in the past
+                            if (lastDisabledExpiration) {
+                                const nextMsg = data[index + 1];
+                                const nextMsgTime = nextMsg ? new Date(nextMsg.timestamp) : new Date();
+
+                                if (nextMsgTime > lastDisabledExpiration) {
+                                    // The expiration time has passed, so we inject a virtual IA_ENABLED message
+                                    augmentedMessages.push({
+                                        id: `virtual-enable-${msg.id}`,
+                                        body: 'IA_ENABLED',
+                                        direction: 'system',
+                                        timestamp: lastDisabledExpiration.toISOString(),
+                                        isVirtual: true
+                                    });
+                                    lastDisabledExpiration = null;
+                                }
+                            }
+                        });
+
+                        // Set final optimized list
+                        setMessages(augmentedMessages);
                     } else {
                         console.error("API did not return an array", data);
                         setMessages([]);
@@ -773,93 +809,110 @@ export default function ChatPage() {
                                         </div>
                                     )}
 
-                                    <div
-                                        className={`flex mb-2 group relative transition-all duration-200 ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'} ${isSelectionMode ? 'cursor-pointer pl-10 pr-4' : ''} ${selectedMessages.includes(msg.id) ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}
-                                        onMouseEnter={() => setHoveredMessageId(msg.id)}
-                                        onMouseLeave={() => setHoveredMessageId(null)}
-                                        onClick={() => {
-                                            if (isSelectionMode) toggleSelectMessage(msg.id);
-                                        }}
-                                        onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            toggleSelectMessage(msg.id);
-                                        }}
-                                    >
-                                        {/* Multiselect Checkbox overlay */}
-                                        {isSelectionMode && (
-                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                                                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedMessages.includes(msg.id) ? 'bg-whatsapp-teal border-whatsapp-teal text-white' : 'border-gray-400 bg-white'}`}>
-                                                    {selectedMessages.includes(msg.id) && <span className="text-xs font-bold leading-none select-none">✓</span>}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div
-                                            className={`relative max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm text-sm transition-colors ${msg.direction === 'outbound'
-                                                ? 'bg-[#d9fdd3] dark:bg-[#005c4b] rounded-tr-none text-gray-900 dark:text-gray-100'
-                                                : 'bg-white dark:bg-[#202c33] rounded-tl-none text-gray-900 dark:text-gray-100'
-                                                } pb-5 ${selectedMessages.includes(msg.id) ? 'ring-2 ring-whatsapp-teal/50' : ''}`}
-                                        >
-                                            {/* Delete Button */}
-                                            {hoveredMessageId === msg.id && (
-                                                <div
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteMessage(msg.id);
-                                                    }}
-                                                    className="absolute -top-3 -right-2 z-10 cursor-pointer rounded-full bg-white dark:bg-gray-800 p-1.5 text-gray-400 hover:text-red-500 shadow-sm border border-gray-200 dark:border-gray-700 transition-colors"
-                                                    title="Eliminar mensaje"
+                                    {/* Render UI for System Messages */}
+                                    {msg.direction === 'system' && (
+                                        <div className="flex justify-center my-4 opacity-80 pointer-events-none w-full">
+                                            <div className="flex flex-col items-center">
+                                                <span className={`px-4 py-1.5 rounded-full text-xs shadow-sm font-medium border
+                                                    ${msg.body === 'IA_DISABLED'
+                                                        ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-400 dark:border-yellow-700/50'
+                                                        : 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-400 dark:border-green-700/50'}`}
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </div>
-                                            )}
-
-                                            {/* Media / Files Content */}
-                                            {msg.fileUrl && (
-                                                <div className="mb-2 mt-1">
-                                                    {msg.fileType?.startsWith('image/') ? (
-                                                        <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="w-full max-w-[300px] h-auto rounded-md cursor-pointer hover:opacity-90 transition object-contain bg-black/5" onClick={() => window.open(msg.fileUrl!, '_blank')} />
-                                                    ) : msg.fileType?.startsWith('audio/') ? (
-                                                        <div className="min-w-[200px] md:min-w-[250px] py-1">
-                                                            <audio controls src={msg.fileUrl} className="w-full h-10 custom-audio-player" />
-                                                        </div>
-                                                    ) : (
-                                                        <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-lg hover:bg-black/10 transition text-blue-600 dark:text-blue-400">
-                                                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600">
-                                                                <Paperclip className="h-5 w-5" />
-                                                            </div>
-                                                            <div className="flex flex-col truncate">
-                                                                <span className="truncate max-w-[150px] font-medium text-gray-800 dark:text-gray-200">{msg.fileName || 'Archivo adjunto'}</span>
-                                                                <span className="text-[10px] text-gray-500 uppercase">{msg.fileType?.split('/')[1] || 'Documento'}</span>
-                                                            </div>
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* Text Content */}
-                                            {msg.body && !msg.body.startsWith('📎 Archivo adjunto:') && (
-                                                <div
-                                                    className="text-[15px] leading-relaxed break-words pr-2"
-                                                    dangerouslySetInnerHTML={parseMessageBody(msg.body)}
-                                                />
-                                            )}
-
-                                            <div className="flex justify-end items-center gap-1 absolute bottom-1 right-2">
-                                                <span className="text-[11px] text-gray-500 dark:text-gray-400" suppressHydrationWarning>
-                                                    {safelyFormatTime(msg.timestamp)}
+                                                    {msg.body === 'IA_DISABLED' ? 'IA Desactivada' : 'IA Activada'} - {safelyFormatTime(msg.timestamp)}
                                                 </span>
-                                                {msg.direction === 'outbound' && (
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="text-[9px] text-gray-400 dark:text-gray-500 uppercase">
-                                                            {msg.isFromIA ? 'API (IA)' : 'CRM (Humano)'}
-                                                        </span>
-                                                        <span className="text-blue-500 text-[11px] ml-0.5">✓✓</span>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
+
+                                    {msg.direction !== 'system' && (
+                                        <div
+                                            className={`flex mb-2 group relative transition-all duration-200 ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'} ${isSelectionMode ? 'cursor-pointer pl-10 pr-4' : ''} ${selectedMessages.includes(msg.id) ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}
+                                            onMouseEnter={() => setHoveredMessageId(msg.id)}
+                                            onMouseLeave={() => setHoveredMessageId(null)}
+                                            onClick={() => {
+                                                if (isSelectionMode) toggleSelectMessage(msg.id);
+                                            }}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                toggleSelectMessage(msg.id);
+                                            }}
+                                        >
+                                            {/* Multiselect Checkbox overlay */}
+                                            {isSelectionMode && (
+                                                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                                                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedMessages.includes(msg.id) ? 'bg-whatsapp-teal border-whatsapp-teal text-white' : 'border-gray-400 bg-white'}`}>
+                                                        {selectedMessages.includes(msg.id) && <span className="text-xs font-bold leading-none select-none">✓</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div
+                                                className={`relative max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm text-sm transition-colors ${msg.direction === 'outbound'
+                                                    ? 'bg-[#d9fdd3] dark:bg-[#005c4b] rounded-tr-none text-gray-900 dark:text-gray-100'
+                                                    : 'bg-white dark:bg-[#202c33] rounded-tl-none text-gray-900 dark:text-gray-100'
+                                                    } pb-5 ${selectedMessages.includes(msg.id) ? 'ring-2 ring-whatsapp-teal/50' : ''}`}
+                                            >
+                                                {/* Delete Button */}
+                                                {hoveredMessageId === msg.id && (
+                                                    <div
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteMessage(msg.id);
+                                                        }}
+                                                        className="absolute -top-3 -right-2 z-10 cursor-pointer rounded-full bg-white dark:bg-gray-800 p-1.5 text-gray-400 hover:text-red-500 shadow-sm border border-gray-200 dark:border-gray-700 transition-colors"
+                                                        title="Eliminar mensaje"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </div>
+                                                )}
+
+                                                {/* Media / Files Content */}
+                                                {msg.fileUrl && (
+                                                    <div className="mb-2 mt-1">
+                                                        {msg.fileType?.startsWith('image/') ? (
+                                                            <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="w-full max-w-[300px] h-auto rounded-md cursor-pointer hover:opacity-90 transition object-contain bg-black/5" onClick={() => window.open(msg.fileUrl!, '_blank')} />
+                                                        ) : msg.fileType?.startsWith('audio/') ? (
+                                                            <div className="min-w-[200px] md:min-w-[250px] py-1">
+                                                                <audio controls src={msg.fileUrl} className="w-full h-10 custom-audio-player" />
+                                                            </div>
+                                                        ) : (
+                                                            <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-lg hover:bg-black/10 transition text-blue-600 dark:text-blue-400">
+                                                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600">
+                                                                    <Paperclip className="h-5 w-5" />
+                                                                </div>
+                                                                <div className="flex flex-col truncate">
+                                                                    <span className="truncate max-w-[150px] font-medium text-gray-800 dark:text-gray-200">{msg.fileName || 'Archivo adjunto'}</span>
+                                                                    <span className="text-[10px] text-gray-500 uppercase">{msg.fileType?.split('/')[1] || 'Documento'}</span>
+                                                                </div>
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Text Content */}
+                                                {msg.body && !msg.body.startsWith('📎 Archivo adjunto:') && (
+                                                    <div
+                                                        className="text-[15px] leading-relaxed break-words pr-2"
+                                                        dangerouslySetInnerHTML={parseMessageBody(msg.body)}
+                                                    />
+                                                )}
+
+                                                <div className="flex justify-end items-center gap-1 absolute bottom-1 right-2">
+                                                    <span className="text-[11px] text-gray-500 dark:text-gray-400" suppressHydrationWarning>
+                                                        {safelyFormatTime(msg.timestamp)}
+                                                    </span>
+                                                    {msg.direction === 'outbound' && (
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[9px] text-gray-400 dark:text-gray-500 uppercase">
+                                                                {msg.isFromIA ? 'API (IA)' : 'CRM (Humano)'}
+                                                            </span>
+                                                            <span className="text-blue-500 text-[11px] ml-0.5">✓✓</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

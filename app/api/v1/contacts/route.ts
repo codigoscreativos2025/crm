@@ -132,6 +132,10 @@ export async function PATCH(req: NextRequest) {
             updateData.nameConfirmed = true;
         }
 
+        let shouldLogDisable = false;
+        let shouldLogEnable = false;
+        let expirationDateString = null;
+
         if (disableAI !== undefined && disableAI !== null) {
             let isDisableAITrue = false;
             if (typeof disableAI === 'string') {
@@ -145,15 +149,54 @@ export async function PATCH(req: NextRequest) {
                 const until = new Date();
                 until.setMinutes(until.getMinutes() + pauseTime);
                 updateData.aiDisabledUntil = until;
+                expirationDateString = until.toISOString();
+
+                // Track if it wasn't already disabled
+                if (!targetContact.aiDisabledUntil || new Date(targetContact.aiDisabledUntil).getTime() < Date.now()) {
+                    shouldLogDisable = true;
+                }
             } else {
                 updateData.aiDisabledUntil = null;
+
+                // Track if it WAS disabled
+                if (targetContact.aiDisabledUntil && new Date(targetContact.aiDisabledUntil).getTime() > Date.now()) {
+                    shouldLogEnable = true;
+                }
             }
         }
 
-        const updatedContact = await prisma.contact.update({
-            where: { id: targetContact.id },
-            data: updateData
-        });
+        let updatedContact = targetContact; // Initialize with targetContact in case no updates are made
+
+        if (Object.keys(updateData).length > 0) {
+            updatedContact = await prisma.contact.update({
+                where: { id: targetContact.id },
+                data: updateData
+            });
+
+            // Log System Events for AI Statues
+            if (shouldLogDisable) {
+                await prisma.message.create({
+                    data: {
+                        body: "IA_DISABLED",
+                        direction: "system",
+                        status: "sent",
+                        contactId: targetContact.id,
+                        fileName: expirationDateString, // Store expiration time here
+                        isReadByAgent: true,
+                    }
+                });
+            } else if (shouldLogEnable) {
+                await prisma.message.create({
+                    data: {
+                        body: "IA_ENABLED",
+                        direction: "system",
+                        status: "sent",
+                        contactId: targetContact.id,
+                        isReadByAgent: true,
+                    }
+                });
+            }
+        }
 
         return NextResponse.json({
             id: updatedContact.id,
