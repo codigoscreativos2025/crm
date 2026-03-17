@@ -5,7 +5,7 @@ import { authenticateApiKey } from "@/lib/auth";
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userApiKey, contactPhone, message, timestamp } = body;
+        const { userApiKey, contactPhone, message, timestamp, mediaUrl, mediaType, mediaName } = body;
 
         // 1. Authenticate Request
         const user = await authenticateApiKey(userApiKey);
@@ -54,11 +54,14 @@ export async function POST(req: NextRequest) {
         const newMessage = await prisma.message.create({
             data: {
                 body: message,
-                direction: "outbound", // Sent by Agent/Us
+                direction: "outbound",
                 status: "sent",
                 timestamp: timestamp ? (typeof timestamp === 'number' && timestamp < 10000000000 ? new Date(timestamp * 1000) : new Date(timestamp)) : new Date(),
                 contactId: contact.id,
                 isFromIA: true,
+                fileUrl: mediaUrl || null,
+                fileType: mediaType || null,
+                fileName: mediaName || null,
             },
         });
 

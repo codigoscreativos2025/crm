@@ -72,22 +72,89 @@ const endpoints = [
   },
   {
     method: 'POST',
+    path: '/api/v1/webhook/incoming',
+    title: 'Recibir Mensaje con Imagen (Webhook n8n → CRM)',
+    description: 'Recibe mensajes entrantes (texto o imagen) desde n8n. Útil cuando el usuario envía una imagen vía WhatsApp y n8n la reporta al CRM.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/v1/webhook/incoming" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "userApiKey": "TU_API_KEY",
+    "contactPhone": "521234567890",
+    "contactName": "Juan Perez",
+    "message": "Mira esta imagen",
+    "mediaUrl": "https://dominio.com/imagenes/foto.jpg",
+    "mediaType": "image/jpeg",
+    "mediaName": "foto.jpg"
+  }'`,
+    requestJSON: `{
+  "userApiKey": "TU_API_KEY",           // Tu API Key pública
+  "contactPhone": "521234567890",      // Número del contacto con código de país
+  "contactName": "Juan Perez",         // Opcional: Nombre del contacto
+  "message": "Texto del mensaje...",  // Obligatorio: Contenido de texto
+  "mediaUrl": "https://...",           // Opcional: URL de la imagen/archivo
+  "mediaType": "image/jpeg",           // Opcional: Tipo MIME (image/jpeg, image/png, video/mp4, etc.)
+  "mediaName": "foto.jpg",             // Opcional: Nombre del archivo
+  "stageId": 3,                        // Opcional: ID de etapa específica
+  "timestamp": 1704067200             // Opcional: Unix timestamp
+}`,
+    responseJSON: `{
+  "success": true,
+  "messageId": 1025
+}`
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/webhook/outgoing',
+    title: 'Enviar Mensaje con Imagen (IA → CRM)',
+    description: 'Recibe mensajes salientes generados por la IA (que pueden incluir imágenes) desde n8n. Registra la respuesta de la IA en el CRM.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/v1/webhook/outgoing" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "userApiKey": "TU_API_KEY",
+    "contactPhone": "521234567890",
+    "message": "Te envío la cotización",
+    "mediaUrl": "https://dominio.com/documentos/cotizacion.pdf",
+    "mediaType": "application/pdf",
+    "mediaName": "cotizacion.pdf"
+  }'`,
+    requestJSON: `{
+  "userApiKey": "TU_API_KEY",           // Tu API Key pública
+  "contactPhone": "521234567890",      // Número del contacto con código de país
+  "message": "Texto del mensaje...",  // Obligatorio: Contenido de texto
+  "mediaUrl": "https://...",           // Opcional: URL de la imagen/archivo
+  "mediaType": "image/jpeg",           // Opcional: Tipo MIME
+  "mediaName": "imagen.jpg",           // Opcional: Nombre del archivo
+  "timestamp": 1704067200             // Opcional: Unix timestamp
+}`,
+    responseJSON: `{
+  "success": true,
+  "messageId": 1026
+}`
+  },
+  {
+    method: 'POST',
     path: '/api/messages',
     title: 'Enviar Mensaje (API Interna)',
-    description: 'Registra un mensaje enviado desde el CRM y dispara el Webhook hacia n8n para su entrega física por WhatsApp.',
+    description: 'Registra un mensaje enviado desde el CRM (agente humano) y dispara el Webhook hacia n8n para su entrega física por WhatsApp. Soporta envío de imágenes.',
     curl: `curl -X POST "https://crm.pivotsoluciones.com/api/messages" \\
   -H "Content-Type: application/json" \\
   -d '{
     "contactId": 12,
     "body": "Hola Juan, te envío la cotización adjunta.",
     "direction": "outbound",
-    "status": "sent"
+    "status": "sent",
+    "fileUrl": "/uploads/archivo.jpg",
+    "fileType": "image/jpeg",
+    "fileName": "cotizacion.jpg"
   }'`,
     requestJSON: `{
-  "contactId": 12,                  // ID Interno del Contacto
-  "body": "Texto del mensaje...", // Contenido del mensaje
+  "contactId": 12,                      // ID Interno del Contacto
+  "body": "Texto del mensaje...",    // Contenido del mensaje
   "direction": "outbound",
-  "status": "sent"
+  "status": "sent",
+  "fileUrl": "/uploads/archivo.jpg",  // Opcional: Ruta del archivo (se envía como URL completa al webhook)
+  "fileType": "image/jpeg",            // Opcional: Tipo MIME
+  "fileName": "imagen.jpg"             // Opcional: Nombre del archivo
 }`,
     responseJSON: `{
   "id": 1024,
@@ -95,6 +162,9 @@ const endpoints = [
   "body": "Hola Juan, te envío la cotización adjunta.",
   "direction": "outbound",
   "status": "sent",
+  "fileUrl": "https://crm.dominio.com/uploads/archivo.jpg",
+  "fileType": "image/jpeg",
+  "fileName": "cotizacion.jpg",
   "isReadByAgent": true,
   "timestamp": "2024-03-01T12:05:00.000Z"
 }`
