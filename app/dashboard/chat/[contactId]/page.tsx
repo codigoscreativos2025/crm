@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X, Trash2, Copy, Forward } from 'lucide-react';
+import { Send, MoreVertical, Search, Paperclip, Smile, ArrowLeft, X, Trash2, Copy, Forward, Download } from 'lucide-react';
 import FunnelSelector from '@/components/FunnelSelector';
 import ContactInfo from '@/components/ContactInfo';
 import { useAlert } from '@/components/AlertProvider';
@@ -59,6 +59,7 @@ export default function ChatPage() {
 
     // New State for Preview and Hover
     const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
+    const [imagePreview, setImagePreview] = useState<{ url: string; name: string } | null>(null);
     const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
 
     // Message Selection Mode
@@ -250,6 +251,26 @@ export default function ChatPage() {
             URL.revokeObjectURL(previewFile.url);
             setPreviewFile(null);
         }
+    };
+
+    const getMimeType = (url: string | null, fallbackType: string | null): string => {
+        if (fallbackType && fallbackType !== 'application/octet-stream') return fallbackType;
+        if (!url) return 'application/octet-stream';
+        const ext = url.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes: Record<string, string> = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+            'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
+            'pdf': 'application/pdf', 'mp4': 'video/mp4', 'webm': 'video/webm',
+            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg',
+            'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'zip': 'application/zip', 'rar': 'application/x-rar-compressed',
+        };
+        return mimeTypes[ext] || 'application/octet-stream';
+    };
+
+    const isImageType = (url: string | null | undefined, fileType: string | null | undefined): boolean => {
+        return getMimeType(url || null, fileType || null).startsWith('image/');
     };
 
     const handleDeleteMessage = async (messageId: number) => {
@@ -617,6 +638,34 @@ export default function ChatPage() {
                 </div>
             )}
 
+            {/* Image Preview Modal */}
+            {imagePreview && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4" onClick={() => setImagePreview(null)}>
+                    <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <button
+                            onClick={() => setImagePreview(null)}
+                            className="absolute -top-10 right-0 text-white hover:text-gray-300 transition flex items-center gap-2"
+                        >
+                            <span className="text-sm">Cerrar</span>
+                            <X className="h-6 w-6" />
+                        </button>
+                        <img
+                            src={imagePreview.url}
+                            alt={imagePreview.name}
+                            className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+                        />
+                        <a
+                            href={imagePreview.url}
+                            download={imagePreview.name || 'imagen'}
+                            className="mt-4 flex items-center justify-center gap-2 bg-whatsapp-green hover:bg-whatsapp-teal text-white px-6 py-3 rounded-lg font-medium transition"
+                        >
+                            <Download className="h-5 w-5" />
+                            Descargar
+                        </a>
+                    </div>
+                </div>
+            )}
+
             {/* Encabezado del Chat o Barra de Selección */}
             {isSelectionMode ? (
                 <div className="flex items-center justify-between bg-whatsapp-teal text-white px-4 py-3 shadow-md z-10 transition-colors duration-200">
@@ -869,8 +918,8 @@ export default function ChatPage() {
                                                 {/* Media / Files Content */}
                                                 {msg.fileUrl && (
                                                     <div className="mb-2 mt-1">
-                                                        {msg.fileType?.startsWith('image/') ? (
-                                                            <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="w-full max-w-[300px] h-auto rounded-md cursor-pointer hover:opacity-90 transition object-contain bg-black/5" onClick={() => window.open(msg.fileUrl!, '_blank')} />
+                                                        {isImageType(msg.fileUrl, msg.fileType) ? (
+                                                            <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="w-full max-w-[300px] h-auto rounded-md cursor-pointer hover:opacity-90 transition object-contain bg-black/5" onClick={() => setImagePreview({ url: msg.fileUrl!, name: msg.fileName || 'imagen' })} />
                                                         ) : msg.fileType?.startsWith('audio/') ? (
                                                             <div className="min-w-[200px] md:min-w-[250px] py-1">
                                                                 <audio controls src={msg.fileUrl} className="w-full h-10 custom-audio-player" />
