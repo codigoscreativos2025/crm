@@ -254,7 +254,20 @@ export default function ChatPage() {
     };
 
     const getMimeType = (url: string | null, fallbackType: string | null): string => {
-        if (fallbackType && fallbackType !== 'application/octet-stream') return fallbackType;
+        if (fallbackType && fallbackType !== 'application/octet-stream') {
+            if (fallbackType.startsWith('image/')) return fallbackType;
+            if (fallbackType.startsWith('audio/')) return fallbackType;
+            if (fallbackType.startsWith('video/')) return fallbackType;
+            const wrongImageTypes: Record<string, string> = {
+                'application/png': 'image/png',
+                'application/jpeg': 'image/jpeg',
+                'application/jpg': 'image/jpeg',
+                'application/gif': 'image/gif',
+                'application/webp': 'image/webp',
+            };
+            if (wrongImageTypes[fallbackType]) return wrongImageTypes[fallbackType];
+            return fallbackType;
+        }
         if (!url) return 'application/octet-stream';
         const ext = url.split('.').pop()?.toLowerCase() || '';
         const mimeTypes: Record<string, string> = {
@@ -271,6 +284,13 @@ export default function ChatPage() {
 
     const isImageType = (url: string | null | undefined, fileType: string | null | undefined): boolean => {
         return getMimeType(url || null, fileType || null).startsWith('image/');
+    };
+
+    const getFullUrl = (url: string | null | undefined): string => {
+        if (!url) return '';
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        return `${baseUrl}${url}`;
     };
 
     const handleDeleteMessage = async (messageId: number) => {
@@ -919,7 +939,7 @@ export default function ChatPage() {
                                                 {msg.fileUrl && (
                                                     <div className="mb-2 mt-1">
                                                         {isImageType(msg.fileUrl, msg.fileType) ? (
-                                                            <img src={msg.fileUrl} alt={msg.fileName || 'Imagen'} className="w-full max-w-[300px] h-auto rounded-md cursor-pointer hover:opacity-90 transition object-contain bg-black/5" onClick={() => setImagePreview({ url: msg.fileUrl!, name: msg.fileName || 'imagen' })} />
+                                                            <img src={getFullUrl(msg.fileUrl)} alt={msg.fileName || 'Imagen'} className="w-full max-w-[300px] h-auto rounded-md cursor-pointer hover:opacity-90 transition object-contain bg-black/5" onClick={() => setImagePreview({ url: getFullUrl(msg.fileUrl), name: msg.fileName || 'imagen' })} />
                                                         ) : msg.fileType?.startsWith('audio/') ? (
                                                             <div className="min-w-[200px] md:min-w-[250px] py-1">
                                                                 <audio controls src={msg.fileUrl} className="w-full h-10 custom-audio-player" />
