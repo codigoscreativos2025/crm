@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { authenticateApiKey } from "@/lib/auth";
+import { startCleanupScheduler } from "@/lib/image-cleanup";
+
+startCleanupScheduler();
 
 export async function POST(req: NextRequest) {
     try {

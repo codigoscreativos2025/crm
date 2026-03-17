@@ -1,6 +1,6 @@
 import Sidebar from "@/components/Sidebar";
-
 import MobileLayoutController from "@/components/MobileLayoutController";
+import CleanupScheduler from "@/components/CleanupScheduler";
 
 export default function DashboardLayout({
     children,
@@ -9,6 +9,7 @@ export default function DashboardLayout({
 }) {
     return (
         <MobileLayoutController>
+            <CleanupScheduler />
             {children}
         </MobileLayoutController>
     );

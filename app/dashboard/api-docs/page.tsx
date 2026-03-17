@@ -7,6 +7,22 @@ import EscNavHandler from '@/components/EscNavHandler';
 
 const endpoints = [
   {
+    method: 'POST',
+    path: '/api/upload',
+    title: 'Subir Archivo (Imagen/Documento)',
+    description: 'Sube un archivo al CRM y retorna la URL para usar en mensajes. El archivo se guarda localmente y se elimina automáticamente después de 30 días.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/upload" \\
+  -F "file=@/ruta/a/imagen.jpg"`,
+    requestJSON: `// FormData
+file: (archivo binario)`,
+    responseJSON: `{
+  "success": true,
+  "url": "/api/files/uuid-imagen.jpg",
+  "name": "imagen.jpg",
+  "type": "image/jpeg"
+}`
+  },
+  {
     method: 'GET',
     path: '/api/v1/contacts',
     title: 'Obtener Contactos',
