@@ -139,8 +139,40 @@ model Condominium {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  // Configuraciones del Condominio (JSON)
+  residentFields    String?
+  incomeCategories  String?
+  expenseCategories String?
+  invoiceDay        Int        @default(1)
+
   residents   Resident[]
   transactions Transaction[]
+  logs        CondominiumLog[]
+  invoices    Invoice[]
+}
+
+model CondominiumLog {
+  id             Int         @id @default(autoincrement())
+  condominiumId  Int
+  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  action         String
+  details        String?
+  source         String
+  createdAt      DateTime    @default(now())
+}
+
+model Invoice {
+  id             Int         @id @default(autoincrement())
+  condominiumId  Int
+  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  residentId     Int
+  resident       Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  month          Int
+  year           Int
+  amount         Float
+  status         String      @default("PENDING")
+  pdfUrl         String?
+  createdAt      DateTime    @default(now())
 }
 
 model Resident {
@@ -158,6 +190,7 @@ model Resident {
   contact        Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   transactions   Transaction[]
+  invoices       Invoice[]
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt

@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Building, Home, Users, ArrowUpCircle, ArrowDownCircle, BarChart3, Plus, Settings } from 'lucide-react';
+import { Building, Home, Users, ArrowUpCircle, ArrowDownCircle, BarChart3, Plus, Settings, FileText, Clock } from 'lucide-react';
 import MetricsTab from './components/MetricsTab';
 import ResidentsTab from './components/ResidentsTab';
 import TransactionsTab from './components/TransactionsTab';
+import LogsTab from './components/LogsTab';
+import InvoicesTab from './components/InvoicesTab';
+import SettingsTab from './components/SettingsTab';
 
 export default function CondominiumsPage() {
     const [loading, setLoading] = useState(true);
@@ -157,8 +160,11 @@ export default function CondominiumsPage() {
                         <p className="text-xs text-gray-500 font-medium tracking-wide uppercase">Módulo de Administración</p>
                     </div>
                 </div>
-                {/* En un caso real, aquí iría el botón de settings para cambiar nombre/tipo (PUT) */}
-                <button className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition">
+                <button 
+                    onClick={() => setActiveTab('settings')}
+                    className={`text-gray-400 hover:text-gray-600 p-2 rounded-full transition ${activeTab === 'settings' ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-100'}`}
+                    title="Ajustes de Condominio"
+                >
                     <Settings className="h-5 w-5" />
                 </button>
             </div>
@@ -190,6 +196,18 @@ export default function CondominiumsPage() {
                     >
                         <ArrowUpCircle className="h-4 w-4" /> Egresos / Gastos
                     </button>
+                    <button
+                        onClick={() => setActiveTab('invoices')}
+                        className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'invoices' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                    >
+                        <FileText className="h-4 w-4" /> Facturas Emisión
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('logs')}
+                        className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'logs' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                    >
+                        <Clock className="h-4 w-4" /> Historial
+                    </button>
                 </nav>
             </div>
 
@@ -200,6 +218,9 @@ export default function CondominiumsPage() {
                     {activeTab === 'residents' && <ResidentsTab condoId={condoData.id} />}
                     {activeTab === 'incomes' && <TransactionsTab condoId={condoData.id} type="INCOME" />}
                     {activeTab === 'expenses' && <TransactionsTab condoId={condoData.id} type="EXPENSE" />}
+                    {activeTab === 'invoices' && <InvoicesTab condoId={condoData.id} />}
+                    {activeTab === 'logs' && <LogsTab condoId={condoData.id} />}
+                    {activeTab === 'settings' && <SettingsTab condoId={condoData.id} />}
                 </div>
             </div>
         </div>

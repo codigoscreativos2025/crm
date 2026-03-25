@@ -10,7 +10,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     try {
         const body = await req.json();
-        const { name, type } = body;
+        const { name, type, residentFields, incomeCategories, expenseCategories, invoiceDay } = body;
         const id = parseInt(params.id);
 
         if (isNaN(id)) {
@@ -36,11 +36,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const dataToUpdate: any = {};
         if (name) dataToUpdate.name = name;
         if (type && (type === 'CASA' || type === 'APARTAMENTO')) dataToUpdate.type = type;
+        if (residentFields !== undefined) dataToUpdate.residentFields = residentFields;
+        if (incomeCategories !== undefined) dataToUpdate.incomeCategories = incomeCategories;
+        if (expenseCategories !== undefined) dataToUpdate.expenseCategories = expenseCategories;
+        if (invoiceDay !== undefined) dataToUpdate.invoiceDay = parseInt(invoiceDay, 10) || 1;
 
         const updated = await prisma.condominium.update({
             where: { id },
             data: dataToUpdate
         });
+
+        // Generar un LOG usando el helper
+        const { createCondoLog } = await import('../logHelper');
+        await createCondoLog(id, "Configuración del condominio actualizada", "CRM");
 
         return NextResponse.json(updated);
 

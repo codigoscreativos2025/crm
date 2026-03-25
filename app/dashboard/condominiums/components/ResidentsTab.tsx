@@ -32,12 +32,25 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
         setLoading(true);
         try {
             const res = await fetch(`/api/condominiums/${condoId}/residents`);
-            if (res.ok) {
+            const settingsRes = await fetch(`/api/condominiums/${condoId}`);
+            
+            if (res.ok && settingsRes.ok) {
                 const data = await res.json();
+                const settingsData = await settingsRes.json();
+                
                 setResidents(data);
                 
-                // Extract all unique dynamic keys across all residents
                 const cols = new Set<string>();
+                
+                // Add predefined columns from settings
+                if (settingsData.residentFields) {
+                    try {
+                        const fields = JSON.parse(settingsData.residentFields);
+                        if (Array.isArray(fields)) fields.forEach(f => cols.add(f));
+                    } catch(e) {}
+                }
+
+                // Extract any other unique dynamic keys
                 data.forEach((r: any) => {
                     if (r.additionalData) {
                         try {
@@ -173,6 +186,13 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                 </div>
                 
                 <div className="flex gap-3 w-full md:w-auto">
+                    <a 
+                        href={`/api/condominiums/${condoId}/residents/template`}
+                        target="_blank"
+                        className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-md shadow-sm transition-colors"
+                    >
+                        <Download className="h-4 w-4" /> Plantilla
+                    </a>
                     {/* Botón de Importar envuelve un label e input file */}
                     <div className="relative overflow-hidden w-full md:w-auto">
                         <input 
@@ -324,9 +344,9 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             {r.contactId ? (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                <a href={`/dashboard/chat/${r.contactId}`} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 hover:underline transition-colors" title="Ir al chat">
                                                     Sí (ID: {r.contactId})
-                                                </span>
+                                                </a>
                                             ) : (
                                                 <span className="text-gray-400 italic text-xs">No enlazado</span>
                                             )}
