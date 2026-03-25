@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { UserCircle, LogOut, Filter, X, Settings, BarChart2, MessageSquareQuote } from 'lucide-react';
+import { UserCircle, LogOut, Filter, X, Settings, BarChart2, MessageSquareQuote, Building } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import ThemeToggle from './ThemeToggle';
 
@@ -41,6 +41,7 @@ export default function Sidebar() {
     const [selectedFunnel, setSelectedFunnel] = useState<number | 'all'>('all');
     const [selectedStage, setSelectedStage] = useState<number | 'all'>('all');
     const [metricsEnabled, setMetricsEnabled] = useState(false);
+    const [isCondoEnabled, setIsCondoEnabled] = useState(false);
 
     const router = useRouter();
 
@@ -64,6 +65,9 @@ export default function Sidebar() {
                     const profile = await resProfile.json();
                     if (profile?.user?.metricsEnabled) {
                         setMetricsEnabled(true);
+                    }
+                    if (profile?.user?.isCondoEnabled) {
+                        setIsCondoEnabled(true);
                     }
                 }
             } catch (error) {
@@ -121,6 +125,11 @@ export default function Sidebar() {
                     {metricsEnabled && (
                         <Link href="/dashboard/metrics" className="p-2 text-purple-600 hover:bg-purple-100 rounded-full transition" title="Dashboard de Métricas">
                             <BarChart2 className="h-5 w-5" />
+                        </Link>
+                    )}
+                    {isCondoEnabled && (
+                        <Link href="/dashboard/condominiums" className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full transition" title="Módulo de Condominios">
+                            <Building className="h-5 w-5" />
                         </Link>
                     )}
                 </div>

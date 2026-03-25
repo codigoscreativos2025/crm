@@ -18,7 +18,8 @@ export async function GET() {
                 defaultFunnelId: true,
                 defaultStageId: true,
                 aiDeactivationMinutes: true,
-                metricsEnabled: true
+                metricsEnabled: true,
+                isCondoEnabled: true
             }
         });
         return NextResponse.json({ user });

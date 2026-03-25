@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         const targetUserId = parseInt(params.id);
         const body = await req.json();
-        const { email, username, password, apiKey, metricsEnabled, canManageUsers, canEditTemplates, canExportData, isActive, disabledMessage, n8nWebhookUrl } = body;
+        const { email, username, password, apiKey, metricsEnabled, canManageUsers, canEditTemplates, canExportData, isCondoEnabled, isActive, disabledMessage, n8nWebhookUrl } = body;
 
         const updateData: any = {};
 
@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (typeof canManageUsers === 'boolean') updateData.canManageUsers = canManageUsers;
         if (typeof canEditTemplates === 'boolean') updateData.canEditTemplates = canEditTemplates;
         if (typeof canExportData === 'boolean') updateData.canExportData = canExportData;
+        if (typeof isCondoEnabled === 'boolean') updateData.isCondoEnabled = isCondoEnabled;
         if (typeof isActive === 'boolean') updateData.isActive = isActive;
         if (disabledMessage !== undefined) updateData.disabledMessage = disabledMessage;
         if (n8nWebhookUrl !== undefined) updateData.n8nWebhookUrl = n8nWebhookUrl;
@@ -80,6 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                 canManageUsers: true,
                 canEditTemplates: true,
                 canExportData: true,
+                isCondoEnabled: true,
                 isActive: true,
                 disabledMessage: true,
                 n8nWebhookUrl: true,

@@ -1,0 +1,17 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+
+Error: Prisma schema validation - (validate wasm)
+Error code: P1012
+error: Error validating field `contact` in model `Resident`: The relation field `contact` on model `Resident` is missing an opposite relation field on the model `Contact`. Either run `prisma format` or add it manually.
+  -->  schema.prisma:157
+   | 
+156 |   contactId      Int?
+157 |   contact        Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+158 | 
+   | 
+
+Validation Error Count: 1
+[Context: validate]
+
+Prisma CLI Version : 5.13.0

@@ -33,6 +33,8 @@ model User {
   canEditTemplates Boolean @default(false)
   canExportData    Boolean @default(false)
 
+  isCondoEnabled   Boolean @default(false)
+
   disabledMessage String?
   n8nWebhookUrl   String?
   createdAt       DateTime @default(now())
@@ -43,6 +45,7 @@ model User {
   funnels          Funnel[]
   messageTemplates MessageTemplate[]
   tags             Tag[]
+  condominium      Condominium? // 1:1 Relation
 }
 
 model AdminMessageTemplate {
@@ -94,6 +97,7 @@ model Contact {
   stageId         Int?
   stage           Stage?    @relation(fields: [stageId], references: [id], onDelete: SetNull)
   tags            Tag[]
+  residents       Resident[]
 
   @@unique([userId, phone])
 }
@@ -124,4 +128,64 @@ model Tag {
   updatedAt DateTime  @updatedAt
 
   @@unique([userId, name])
+}
+
+model Condominium {
+  id          Int        @id @default(autoincrement())
+  name        String     
+  type        String     // 'CASA' o 'APARTAMENTO'
+  userId      Int        @unique // Relación 1:1 (Un usuario, un único condominio)
+  user        User       @relation(fields: [userId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  residents   Resident[]
+  transactions Transaction[]
+}
+
+model Resident {
+  id             Int         @id @default(autoincrement())
+  name           String
+  phone          String
+  // Campos configurables extra almacenados como JSON
+  additionalData String?     // JSON string
+  
+  condominiumId  Int
+  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  
+  // Relacionar opcionalmente con un Contacto del CRM si existe un chat
+  contactId      Int?
+  contact        Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  transactions   Transaction[]
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([condominiumId, phone]) // Un teléfono único por condominio
+}
+
+model Transaction {
+  id             Int         @id @default(autoincrement())
+  type           String      // 'INCOME' (Ingreso) o 'EXPENSE' (Egreso)
+  category       String      // Ej: 'Pago', 'Cuotas especiales', 'Gastos fijos', 'Gastos extraordinarios'
+  amount         Float
+  description    String?
+  status         String      @default("PENDING") // 'PENDING' (Por conciliar), 'RECONCILED' (Conciliado)
+  date           DateTime    @default(now())
+  
+  // Soportes (Boucher / Recibo)
+  receiptUrl     String?
+  receiptType    String?     // mime type (pdf, jpeg, etc)
+  
+  // Relaciones
+  condominiumId  Int
+  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  
+  // Sólo para ingresos (pagado por un residente)
+  residentId     Int?
+  resident       Resident?   @relation(fields: [residentId], references: [id], onDelete: SetNull)
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }

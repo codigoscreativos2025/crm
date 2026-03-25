@@ -1,0 +1,78 @@
+import { auth } from "@/auth";
+import prisma from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#ffc658'];
+
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    try {
+        const condoId = parseInt(params.id);
+        if (isNaN(condoId)) return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
+
+        const userId = parseInt(session.user.id);
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = user?.parentId || userId;
+
+        const condo = await prisma.condominium.findUnique({
+            where: { id: condoId }
+        });
+
+        if (!condo || condo.userId !== ownerId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+
+        const currentMonthStart = new Date();
+        currentMonthStart.setDate(1);
+        currentMonthStart.setHours(0,0,0,0);
+
+        // Agrupación de ingresos por categoría
+        const incomeGroup = await prisma.transaction.groupBy({
+            by: ['category'],
+            where: {
+                condominiumId: condoId,
+                type: 'INCOME',
+                date: { gte: currentMonthStart },
+                status: 'RECONCILED'
+            },
+            _sum: { amount: true }
+        });
+
+        // Agrupación de egresos por categoría
+        const expenseGroup = await prisma.transaction.groupBy({
+            by: ['category'],
+            where: {
+                condominiumId: condoId,
+                type: 'EXPENSE',
+                date: { gte: currentMonthStart },
+                status: 'RECONCILED'
+            },
+            _sum: { amount: true }
+        });
+
+        const ingresos = incomeGroup.map((item, index) => ({
+            name: item.category,
+            value: item._sum.amount || 0,
+            color: COLORS[index % COLORS.length]
+        })).filter(i => i.value > 0);
+
+        const egresos = expenseGroup.map((item, index) => ({
+            name: item.category,
+            value: item._sum.amount || 0,
+            color: COLORS[(index + 2) % COLORS.length]
+        })).filter(e => e.value > 0);
+
+        return NextResponse.json({ ingresos, egresos });
+
+    } catch (error) {
+        console.error("Error fetching category percentages:", error);
+        return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    }
+}

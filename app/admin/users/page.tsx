@@ -16,6 +16,7 @@ interface User {
     canManageUsers: boolean;
     canEditTemplates: boolean;
     canExportData: boolean;
+    isCondoEnabled: boolean;
     parentId: number | null;
     disabledMessage: string | null;
     n8nWebhookUrl: string | null;
@@ -35,13 +36,13 @@ export default function AdminUsersPage() {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [editForm, setEditForm] = useState({
         email: '', username: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
-        disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
+        disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false, isCondoEnabled: false
     });
 
     const [showNewUserModal, setShowNewUserModal] = useState(false);
     const [newUserForm, setNewUserForm] = useState({
         accountType: 'AGENT', email: '', username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
-        canManageUsers: false, canEditTemplates: false, canExportData: false, parentId: ''
+        canManageUsers: false, canEditTemplates: false, canExportData: false, isCondoEnabled: false, parentId: ''
     });
     const [creatingUser, setCreatingUser] = useState(false);
 
@@ -95,7 +96,7 @@ export default function AdminUsersPage() {
             email: user.email || '', username: user.username || '', password: '', apiKey: user.apiKey,
             metricsEnabled: user.metricsEnabled, isActive: user.isActive,
             disabledMessage: user.disabledMessage || '', n8nWebhookUrl: user.n8nWebhookUrl || '',
-            canManageUsers: user.canManageUsers, canEditTemplates: user.canEditTemplates, canExportData: user.canExportData
+            canManageUsers: user.canManageUsers, canEditTemplates: user.canEditTemplates, canExportData: user.canExportData, isCondoEnabled: user.isCondoEnabled || false
         });
     };
 
@@ -103,7 +104,7 @@ export default function AdminUsersPage() {
         setEditingUser(null);
         setEditForm({
             email: '', username: '', password: '', apiKey: '', metricsEnabled: false, isActive: true,
-            disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false
+            disabledMessage: '', n8nWebhookUrl: '', canManageUsers: false, canEditTemplates: false, canExportData: false, isCondoEnabled: false
         });
         setError('');
     };
@@ -119,6 +120,7 @@ export default function AdminUsersPage() {
                 canManageUsers: editForm.canManageUsers,
                 canEditTemplates: editForm.canEditTemplates,
                 canExportData: editForm.canExportData,
+                isCondoEnabled: editForm.isCondoEnabled,
                 isActive: editForm.isActive,
                 disabledMessage: editForm.disabledMessage,
                 n8nWebhookUrl: editForm.n8nWebhookUrl
@@ -202,7 +204,7 @@ export default function AdminUsersPage() {
                 setShowNewUserModal(false);
                 setNewUserForm({
                     accountType: 'AGENT', email: '', username: '', password: '', role: 'USER', isActive: true, metricsEnabled: false,
-                    canManageUsers: false, canEditTemplates: false, canExportData: false, parentId: ''
+                    canManageUsers: false, canEditTemplates: false, canExportData: false, isCondoEnabled: false, parentId: ''
                 });
                 fetchUsers();
             } else {
@@ -341,6 +343,15 @@ export default function AdminUsersPage() {
                                                 <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${newUserForm.canExportData ? 'transform translate-x-4' : ''}`}></div>
                                             </div>
                                             <span className="text-sm font-medium text-gray-700">Exportar Reportes (Excel/PDF)</span>
+                                        </label>
+
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <div className="relative">
+                                                <input type="checkbox" className="sr-only" checked={newUserForm.isCondoEnabled} onChange={e => setNewUserForm({ ...newUserForm, isCondoEnabled: e.target.checked })} />
+                                                <div className={`block w-10 h-6 rounded-full transition-colors ${newUserForm.isCondoEnabled ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+                                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${newUserForm.isCondoEnabled ? 'transform translate-x-4' : ''}`}></div>
+                                            </div>
+                                            <span className="text-sm font-medium text-gray-700">Módulo de Condominios</span>
                                         </label>
                                     </div>
                                 </div>
@@ -528,6 +539,14 @@ export default function AdminUsersPage() {
                                                     </div>
                                                     Permisos de Exportación
                                                 </label>
+                                                <label className="flex items-center gap-2 cursor-pointer mt-1 text-sm text-gray-700">
+                                                    <div className="relative">
+                                                        <input type="checkbox" className="sr-only" checked={editForm.isCondoEnabled} onChange={(e) => setEditForm({ ...editForm, isCondoEnabled: e.target.checked })} />
+                                                        <div className={`block w-10 h-6 rounded-full transition-colors ${editForm.isCondoEnabled ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+                                                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${editForm.isCondoEnabled ? 'transform translate-x-4' : ''}`}></div>
+                                                    </div>
+                                                    Módulo de Condominios
+                                                </label>
                                             </div>
                                         ) : (
                                             <div className="text-sm text-gray-500">
@@ -546,6 +565,7 @@ export default function AdminUsersPage() {
                                                 <div className="flex gap-2 mt-2">
                                                     {user.canEditTemplates && <span className="bg-orange-100 text-orange-800 text-[10px] px-2 py-0.5 rounded-full font-semibold">Plantillas</span>}
                                                     {user.canExportData && <span className="bg-green-100 text-green-800 text-[10px] px-2 py-0.5 rounded-full font-semibold">Exportador</span>}
+                                                    {user.isCondoEnabled && <span className="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-semibold">Condominios</span>}
                                                     {/* We skip canManageUsers as long as role === ADMIN handles it broadly */}
                                                 </div>
                                             </div>
