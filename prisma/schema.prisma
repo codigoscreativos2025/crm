@@ -143,6 +143,8 @@ model Condominium {
   residentFields    String?
   incomeCategories  String?
   expenseCategories String?
+  fixedCosts        String?    // JSON: [{"name":"Vigilancia","amount":5000}]
+  invoiceTemplate   String?    // JSON: PDF layout config (fonts, sizes, titles, item order)
   invoiceDay        Int        @default(1)
 
   residents   Resident[]
@@ -165,14 +167,15 @@ model Invoice {
   id             Int         @id @default(autoincrement())
   condominiumId  Int
   condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
-  residentId     Int
-  resident       Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
   month          Int
   year           Int
   amount         Float
+  lineItems      String?     // JSON: [{"concept":"Agua","amount":1200},...]
+  notes          String?
   status         String      @default("PENDING")
-  pdfUrl         String?
   createdAt      DateTime    @default(now())
+
+  @@unique([condominiumId, month, year]) // Only 1 invoice per condo per month
 }
 
 model Resident {
@@ -190,7 +193,6 @@ model Resident {
   contact        Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   transactions   Transaction[]
-  invoices       Invoice[]
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt

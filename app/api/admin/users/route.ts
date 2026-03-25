@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
                 canManageUsers: true,
                 canEditTemplates: true,
                 canExportData: true,
+                isCondoEnabled: true,
                 createdAt: true,
             },
             orderBy: {

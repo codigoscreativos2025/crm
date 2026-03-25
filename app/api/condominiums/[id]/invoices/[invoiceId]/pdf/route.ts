@@ -1,18 +1,6 @@
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-const PdfPrinter = require("pdfmake");
-import { TDocumentDefinitions } from "pdfmake/interfaces";
-
-// Usamos fuentes estándar de PDF (Helvetica) para evitar problemas en Serverless y dependencias de disco
-const fonts = {
-    Helvetica: {
-        normal: 'Helvetica',
-        bold: 'Helvetica-Bold',
-        italics: 'Helvetica-Oblique',
-        bolditalics: 'Helvetica-BoldOblique'
-    }
-};
 
 export async function GET(req: NextRequest, { params }: { params: { id: string, invoiceId: string } }) {
     const session = await auth();
@@ -26,121 +14,149 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
     try {
         const invoice = await prisma.invoice.findUnique({
             where: { id: invoiceId },
-            include: {
-                resident: true,
-                condominium: true
-            }
+            include: { condominium: true }
         });
 
         if (!invoice || invoice.condominiumId !== condoId) {
             return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
         }
 
+        // Parse template config
+        let template: any = {};
+        if (invoice.condominium.invoiceTemplate) {
+            try { template = JSON.parse(invoice.condominium.invoiceTemplate); } catch(e) {}
+        }
+
+        // Parse line items
+        let lineItems: { concept: string; amount: number }[] = [];
+        if (invoice.lineItems) {
+            try { lineItems = JSON.parse(invoice.lineItems); } catch(e) {}
+        }
+
+        const headerTitle = template.headerTitle || 'ESTADO DE CUENTA';
+        const headerFont = template.headerFont || 'Helvetica';
+        const headerSize = template.headerSize || 18;
+        const bodyFont = template.bodyFont || 'Helvetica';
+        const bodySize = template.bodySize || 11;
+        const footerText = template.footerText || 'Gracias por su puntualidad.';
+        const footerSize = template.footerSize || 10;
+
+        // Build table body from line items
+        const tableBody: any[] = [
+            [
+                { text: 'CONCEPTO', fillColor: '#eeeeee', bold: true, font: bodyFont, fontSize: bodySize },
+                { text: 'IMPORTE', fillColor: '#eeeeee', alignment: 'right', bold: true, font: bodyFont, fontSize: bodySize }
+            ]
+        ];
+
+        lineItems.forEach(item => {
+            tableBody.push([
+                { text: item.concept, font: bodyFont, fontSize: bodySize },
+                { text: `$${item.amount.toFixed(2)}`, alignment: 'right', font: bodyFont, fontSize: bodySize }
+            ]);
+        });
+
+        tableBody.push([
+            { text: 'TOTAL:', bold: true, alignment: 'right', font: bodyFont, fontSize: bodySize + 1 },
+            { text: `$${invoice.amount.toFixed(2)}`, bold: true, alignment: 'right', font: bodyFont, fontSize: bodySize + 1 }
+        ]);
+
+        const fonts = {
+            Helvetica: { normal: 'Helvetica', bold: 'Helvetica-Bold', italics: 'Helvetica-Oblique', bolditalics: 'Helvetica-BoldOblique' },
+            Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
+            Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' }
+        };
+
+        // @ts-ignore - pdfmake types don't match runtime export
+        const PdfPrinter = require('pdfmake/src/printer');
         const printer = new PdfPrinter(fonts);
 
-        const docDefinition: TDocumentDefinitions = {
-            defaultStyle: {
-                font: 'Helvetica'
-            },
+        const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+        const docDefinition: any = {
+            defaultStyle: { font: bodyFont },
             content: [
                 {
-                    text: `ESTADO DE CUENTA / FACTURA`,
-                    style: 'header',
+                    text: headerTitle,
+                    font: headerFont,
+                    fontSize: headerSize,
+                    bold: true,
                     alignment: 'center',
-                    margin: [0, 0, 0, 20]
+                    margin: [0, 0, 0, 10]
                 },
                 {
                     text: invoice.condominium.name.toUpperCase(),
-                    style: 'subheader',
+                    font: headerFont,
+                    fontSize: headerSize - 4,
                     bold: true,
-                    margin: [0, 0, 0, 10]
+                    margin: [0, 0, 0, 5]
+                },
+                {
+                    text: `Periodo: ${monthNames[invoice.month - 1] || invoice.month} ${invoice.year}`,
+                    font: bodyFont,
+                    fontSize: bodySize,
+                    margin: [0, 0, 0, 5]
                 },
                 {
                     columns: [
                         {
                             width: '*',
                             text: [
-                                { text: 'Residente: ', bold: true }, `${invoice.resident.name}\n`,
-                                { text: 'Teléfono: ', bold: true }, `${invoice.resident.phone}\n`
-                            ]
-                        },
-                        {
-                            width: 'auto',
-                            text: [
-                                { text: 'Factura N°: ', bold: true }, `${invoice.id.toString().padStart(6, '0')}\n`,
-                                { text: 'Fecha de Emisión: ', bold: true }, `${new Date(invoice.createdAt).toLocaleDateString()}\n`,
-                                { text: 'Periodo: ', bold: true }, `${invoice.month.toString().padStart(2, '0')}/${invoice.year}\n`,
-                                { text: 'Estatus: ', bold: true }, `${invoice.status === 'PAID' ? 'PAGADA' : 'PENDIENTE'}`
+                                { text: 'Factura N°: ', bold: true },
+                                `${invoice.id.toString().padStart(6, '0')}\n`,
+                                { text: 'Fecha: ', bold: true },
+                                `${new Date(invoice.createdAt).toLocaleDateString()}\n`,
+                                { text: 'Estatus: ', bold: true },
+                                `${invoice.status === 'PAID' ? 'PAGADA' : 'GENERADA'}`
                             ],
-                            alignment: 'right'
+                            font: bodyFont,
+                            fontSize: bodySize
                         }
                     ],
-                    margin: [0, 0, 0, 30]
+                    margin: [0, 0, 0, 20]
                 },
                 {
                     table: {
                         headerRows: 1,
                         widths: ['*', 'auto'],
-                        body: [
-                            [
-                                { text: 'CONCEPTO', style: 'tableHeader', fillColor: '#eeeeee', bold: true },
-                                { text: 'IMPORTE', style: 'tableHeader', fillColor: '#eeeeee', alignment: 'right', bold: true }
-                            ],
-                            [
-                                `Cuota de Mantenimiento - Mes ${invoice.month}/${invoice.year}`,
-                                { text: `$${invoice.amount.toFixed(2)}`, alignment: 'right' }
-                            ],
-                            [
-                                { text: 'TOTAL A PAGAR:', bold: true, alignment: 'right' },
-                                { text: `$${invoice.amount.toFixed(2)}`, bold: true, alignment: 'right' }
-                            ]
-                        ]
+                        body: tableBody
                     },
                     layout: 'lightHorizontalLines'
                 },
-                {
-                    text: 'Gracias por su puntualidad. El pago puntual nos permite seguir manteniendo nuestras instalaciones en óptimo estado.',
+                ...(invoice.notes ? [{
+                    text: `Notas: ${invoice.notes}`,
+                    font: bodyFont,
+                    fontSize: bodySize,
                     italics: true,
-                    margin: [0, 40, 0, 0],
-                    fontSize: 10,
+                    margin: [0, 20, 0, 0]
+                }] : []),
+                {
+                    text: footerText,
+                    italics: true,
+                    margin: [0, 30, 0, 0],
+                    fontSize: footerSize,
+                    font: bodyFont,
                     alignment: 'center'
                 }
-            ],
-            styles: {
-                header: {
-                    fontSize: 18,
-                    bold: true
-                },
-                subheader: {
-                    fontSize: 14,
-                    bold: true
-                },
-                tableHeader: {
-                    bold: true,
-                    fontSize: 12,
-                    color: 'black'
-                }
-            }
+            ]
         };
 
         const pdfDoc = printer.createPdfKitDocument(docDefinition);
-        
-        // Convertir el stream a un Buffer para responder
+
         const chunks: Buffer[] = [];
         pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
-        
+
         const returnBuffer = await new Promise<Buffer>((resolve, reject) => {
             pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
             pdfDoc.on('error', reject);
             pdfDoc.end();
         });
 
-        // Retornamos la respuesta tipo PDF para visualizar inline o descargar (attachment)
         return new Response(returnBuffer as unknown as BodyInit, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `inline; filename="Factura_${invoice.id}.pdf"`
+                'Content-Disposition': `inline; filename="Factura_${invoice.id}_${invoice.month}_${invoice.year}.pdf"`
             }
         });
 

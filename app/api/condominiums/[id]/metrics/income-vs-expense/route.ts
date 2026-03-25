@@ -27,15 +27,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        // Obtener historial de los últimos 6 meses
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        // Accept dynamic month range from query param
+        const { searchParams } = new URL(req.url);
+        const numMonths = parseInt(searchParams.get('months') || '6') || 6;
+
+        // Obtener historial
+        const monthsAgo = new Date();
+        monthsAgo.setMonth(monthsAgo.getMonth() - numMonths);
 
         const transactions = await prisma.transaction.findMany({
             where: {
                 condominiumId: condoId,
-                date: { gte: sixMonthsAgo },
-                status: 'RECONCILED' // Asumimos que solo graficamos lo conciliado (real)
+                date: { gte: monthsAgo },
+                status: 'RECONCILED'
             },
             select: {
                 type: true,
@@ -44,12 +48,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             }
         });
 
-        // Agrupar por mes/año (ej. "Ene 2024")
+        // Agrupar por mes/año
         const monthsStr = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
         const incomeVsExpenseMap: Record<string, { month: string, ing: number, egr: number, order: number }> = {};
 
-        // Inicializar los últimos 6 meses asegurando el orden
-        for (let i = 5; i >= 0; i--) {
+        // Inicializar los meses
+        for (let i = numMonths - 1; i >= 0; i--) {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const key = `${d.getFullYear()}-${d.getMonth()}`;

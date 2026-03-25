@@ -12,54 +12,81 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     try {
         const body = await req.json();
-        const { month, year, amount } = body;
+        const { month, year } = body;
 
-        if (!month || !year || amount === undefined) {
-             return NextResponse.json({ error: "Mes, Año y Monto son requeridos." }, { status: 400 });
+        if (!month || !year) {
+             return NextResponse.json({ error: "Mes y Año son requeridos." }, { status: 400 });
+        }
+
+        // Check if invoice already exists for this month/year
+        const existing = await prisma.invoice.findUnique({
+            where: { condominiumId_month_year: { condominiumId: id, month, year } }
+        });
+        if (existing) {
+            return NextResponse.json({ error: `Ya existe una factura para ${month}/${year}. Elimínela primero si desea regenerarla.` }, { status: 400 });
         }
 
         const condo = await prisma.condominium.findUnique({
-            where: { id },
-            include: { residents: true }
+            where: { id }
         });
 
         if (!condo) return NextResponse.json({ error: "Condominio no encontrado" }, { status: 404 });
 
-        let generatedCount = 0;
+        // Get all expenses for that month/year
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 1);
 
-        // Para cada residente, verificar si ya tiene factura en ese mes/año
-        for (const res of condo.residents) {
-            const exists = await prisma.invoice.findFirst({
-                where: {
-                    condominiumId: id,
-                    residentId: res.id,
-                    month,
-                    year
-                }
-            });
+        const expenses = await prisma.transaction.findMany({
+            where: {
+                condominiumId: id,
+                type: 'EXPENSE',
+                date: { gte: startDate, lt: endDate }
+            },
+            select: { category: true, amount: true, description: true }
+        });
 
-            if (!exists) {
-                await prisma.invoice.create({
-                    data: {
-                        condominiumId: id,
-                        residentId: res.id,
-                        month,
-                        year,
-                        amount: parseFloat(amount),
-                        status: 'PENDING'
-                    }
-                });
-                generatedCount++;
+        // Build line items from expenses
+        const lineItems: { concept: string; amount: number }[] = [];
+
+        // Group expenses by category
+        const categoryTotals: Record<string, number> = {};
+        expenses.forEach(e => {
+            const key = e.category || 'Sin categoría';
+            categoryTotals[key] = (categoryTotals[key] || 0) + e.amount;
+        });
+
+        Object.entries(categoryTotals).forEach(([cat, amt]) => {
+            lineItems.push({ concept: cat, amount: amt });
+        });
+
+        // Add fixed costs from condo config
+        let fixedCosts: { name: string; amount: number }[] = [];
+        if (condo.fixedCosts) {
+            try { fixedCosts = JSON.parse(condo.fixedCosts); } catch(e) {}
+        }
+        fixedCosts.forEach(fc => {
+            lineItems.push({ concept: `[Fijo] ${fc.name}`, amount: fc.amount });
+        });
+
+        // Total amount
+        const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
+
+        const invoice = await prisma.invoice.create({
+            data: {
+                condominiumId: id,
+                month,
+                year,
+                amount: totalAmount,
+                lineItems: JSON.stringify(lineItems),
+                status: 'GENERATED'
             }
-        }
+        });
 
-        if (generatedCount > 0) {
-            await createCondoLog(id, `Se generaron ${generatedCount} facturas para ${month}/${year}`, "CRM");
-        }
+        await createCondoLog(id, `Factura mensual generada para ${month}/${year} - Total: $${totalAmount.toFixed(2)}`, "CRM");
 
-        return NextResponse.json({ success: true, generated: generatedCount });
+        return NextResponse.json({ success: true, invoice });
     } catch (e) {
-        console.error("Error generating invoices:", e);
-        return NextResponse.json({ error: "Error interno generado facturas." }, { status: 500 });
+        console.error("Error generating invoice:", e);
+        return NextResponse.json({ error: "Error interno generando factura." }, { status: 500 });
     }
 }

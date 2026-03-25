@@ -95,3 +95,64 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    try {
+        const adminId = parseInt(session.user.id);
+        const currentUser = await prisma.user.findUnique({
+            where: { id: adminId },
+            select: { role: true }
+        });
+
+        if (currentUser?.role !== 'ADMIN') {
+            return NextResponse.json({ error: "No autorizado. Solo Super Admins." }, { status: 403 });
+        }
+
+        const targetUserId = parseInt(params.id);
+
+        if (targetUserId === adminId) {
+            return NextResponse.json({ error: "No puedes eliminarte a ti mismo." }, { status: 400 });
+        }
+
+        const targetUser = await prisma.user.findUnique({
+            where: { id: targetUserId }
+        });
+
+        if (!targetUser) {
+            return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
+        }
+
+        // Delete in correct order to respect foreign keys
+        // 1. Delete child users (agents linked to this owner)
+        const childUsers = await prisma.user.findMany({ where: { parentId: targetUserId }, select: { id: true } });
+        for (const child of childUsers) {
+            await prisma.message.deleteMany({ where: { contact: { userId: child.id } } });
+            await prisma.contact.deleteMany({ where: { userId: child.id } });
+            await prisma.funnel.deleteMany({ where: { userId: child.id } });
+            await prisma.tag.deleteMany({ where: { userId: child.id } });
+            await prisma.user.delete({ where: { id: child.id } });
+        }
+
+        // 2. Delete this user's data
+        await prisma.message.deleteMany({ where: { contact: { userId: targetUserId } } });
+        await prisma.contact.deleteMany({ where: { userId: targetUserId } });
+        await prisma.funnel.deleteMany({ where: { userId: targetUserId } });
+        await prisma.tag.deleteMany({ where: { userId: targetUserId } });
+
+        // 3. Delete condominium (cascade handles residents, transactions, invoices, logs)
+        await prisma.condominium.deleteMany({ where: { userId: targetUserId } });
+
+        // 4. Delete the user
+        await prisma.user.delete({ where: { id: targetUserId } });
+
+        return NextResponse.json({ success: true, message: `Usuario #${targetUserId} eliminado.` });
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        return NextResponse.json({ error: "Error eliminando usuario." }, { status: 500 });
+    }
+}

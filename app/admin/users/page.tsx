@@ -218,6 +218,21 @@ export default function AdminUsersPage() {
         }
     };
 
+    const handleDeleteUser = async (userId: number) => {
+        if (!confirm(`¿Estás seguro de eliminar al usuario #${userId}? Esta acción es irreversible y eliminará todos sus datos.`)) return;
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+            if (res.ok) {
+                fetchUsers();
+            } else {
+                const data = await res.json();
+                setError(data.error || 'Error al eliminar usuario');
+            }
+        } catch (err) {
+            setError('Error de conexión.');
+        }
+    };
+
     const filteredUsers = users.filter(user =>
         (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -638,9 +653,14 @@ export default function AdminUsersPage() {
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button onClick={() => handleEdit(user)} className="text-[#00A884] hover:text-[#008f6f] flex items-center gap-1 font-semibold transition-colors">
-                                                <Edit2 className="h-4 w-4" /> Editar Config
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                                <button onClick={() => handleEdit(user)} className="text-[#00A884] hover:text-[#008f6f] flex items-center gap-1 font-semibold transition-colors">
+                                                    <Edit2 className="h-4 w-4" /> Editar
+                                                </button>
+                                                <button onClick={() => handleDeleteUser(user.id)} className="text-gray-400 hover:text-red-600 flex items-center gap-1 font-semibold transition-colors">
+                                                    <Trash className="h-4 w-4" /> Eliminar
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>

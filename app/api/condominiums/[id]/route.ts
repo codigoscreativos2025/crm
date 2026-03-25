@@ -50,7 +50,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     try {
         const body = await req.json();
-        const { name, type, residentFields, incomeCategories, expenseCategories, invoiceDay } = body;
+        const { name, type, residentFields, incomeCategories, expenseCategories, fixedCosts, invoiceTemplate, invoiceDay } = body;
         const id = parseInt(params.id);
 
         if (isNaN(id)) {
@@ -79,6 +79,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         if (residentFields !== undefined) dataToUpdate.residentFields = residentFields;
         if (incomeCategories !== undefined) dataToUpdate.incomeCategories = incomeCategories;
         if (expenseCategories !== undefined) dataToUpdate.expenseCategories = expenseCategories;
+        if (fixedCosts !== undefined) dataToUpdate.fixedCosts = fixedCosts;
+        if (invoiceTemplate !== undefined) dataToUpdate.invoiceTemplate = invoiceTemplate;
         if (invoiceDay !== undefined) dataToUpdate.invoiceDay = parseInt(invoiceDay, 10) || 1;
 
         const updated = await prisma.condominium.update({
