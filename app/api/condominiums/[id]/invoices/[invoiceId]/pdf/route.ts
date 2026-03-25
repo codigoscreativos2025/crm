@@ -136,7 +136,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
         });
 
         // Retornamos la respuesta tipo PDF para visualizar inline o descargar (attachment)
-        return new Response(returnBuffer, {
+        return new Response(returnBuffer as unknown as BodyInit, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',

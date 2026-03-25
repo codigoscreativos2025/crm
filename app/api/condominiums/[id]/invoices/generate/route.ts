@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { createCondoLog } from "../../logHelper";
+import { createCondoLog } from "../../../logHelper";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
     const session = await auth();
