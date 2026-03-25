@@ -60,6 +60,10 @@ export async function cleanupOldImages(): Promise<{ deleted: number; errors: num
             for (const msg of messages) {
                 if (msg.fileUrl) {
                     try {
+                        // Skip receipt files from condominiums module
+                        if (msg.fileUrl.includes('/receipts/')) {
+                            continue;
+                        }
                         const filename = msg.fileUrl.split('/').pop();
                         if (filename) {
                             const filePath = path.join(UPLOAD_DIR, filename);

@@ -2,6 +2,46 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    try {
+        const id = parseInt(params.id);
+        if (isNaN(id)) {
+            return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
+        }
+
+        const userId = parseInt(session.user.id);
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { parentId: true }
+        });
+        const ownerId = user?.parentId || userId;
+
+        const condominium = await prisma.condominium.findUnique({
+            where: { id },
+            include: {
+                _count: {
+                    select: { residents: true, transactions: true }
+                }
+            }
+        });
+
+        if (!condominium || condominium.userId !== ownerId) {
+            return NextResponse.json({ error: "Condominio no encontrado o sin permisos" }, { status: 404 });
+        }
+
+        return NextResponse.json(condominium);
+
+    } catch (error) {
+        console.error("Error fetching condominium:", error);
+        return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
     const session = await auth();
     if (!session?.user?.id) {

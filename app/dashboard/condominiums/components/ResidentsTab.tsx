@@ -11,18 +11,15 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [form, setForm] = useState({ name: '', phone: '', additionalData: '{}' });
-    
-    // Dynamic fields editor inside the modal
-    const [dynamicFields, setDynamicFields] = useState<{key: string, value: string}[]>([]);
+    const [form, setForm] = useState<{ name: string; phone: string; [key: string]: string }>({ name: '', phone: '' });
 
     // Import
     const [importing, setImporting] = useState(false);
     const [importErrors, setImportErrors] = useState<{row: number, col: number, message: string}[]>([]);
     const [importSuccess, setImportSuccess] = useState(0);
 
-    // Track dynamic columns used across all residents for table rendering
-    const [allDynamicColumns, setAllDynamicColumns] = useState<string[]>([]);
+    // Global configured columns from Settings (residentFields)
+    const [configuredColumns, setConfiguredColumns] = useState<string[]>([]);
 
     useEffect(() => {
         fetchResidents();
@@ -31,35 +28,23 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
     const fetchResidents = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/condominiums/${condoId}/residents`);
-            const settingsRes = await fetch(`/api/condominiums/${condoId}`);
+            const [res, settingsRes] = await Promise.all([
+                fetch(`/api/condominiums/${condoId}/residents`),
+                fetch(`/api/condominiums/${condoId}`)
+            ]);
             
-            if (res.ok && settingsRes.ok) {
-                const data = await res.json();
+            if (res.ok) {
+                setResidents(await res.json());
+            }
+            
+            if (settingsRes.ok) {
                 const settingsData = await settingsRes.json();
-                
-                setResidents(data);
-                
-                const cols = new Set<string>();
-                
-                // Add predefined columns from settings
                 if (settingsData.residentFields) {
                     try {
                         const fields = JSON.parse(settingsData.residentFields);
-                        if (Array.isArray(fields)) fields.forEach(f => cols.add(f));
+                        if (Array.isArray(fields)) setConfiguredColumns(fields);
                     } catch(e) {}
                 }
-
-                // Extract any other unique dynamic keys
-                data.forEach((r: any) => {
-                    if (r.additionalData) {
-                        try {
-                            const parsed = JSON.parse(r.additionalData);
-                            Object.keys(parsed).forEach(k => cols.add(k));
-                        } catch(e) {}
-                    }
-                });
-                setAllDynamicColumns(Array.from(cols));
             }
         } catch (e) {
             console.error(e);
@@ -70,34 +55,44 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
     const handleOpenModal = (r?: any) => {
         setImportErrors([]);
         setImportSuccess(0);
+        
+        // Build form with configured columns
+        const baseForm: any = { name: '', phone: '' };
+        configuredColumns.forEach(col => { baseForm[col] = ''; });
+        
         if (r) {
             setEditingId(r.id);
-            setForm({ name: r.name, phone: r.phone, additionalData: r.additionalData || '{}' });
+            baseForm.name = r.name;
+            baseForm.phone = r.phone;
+            // Populate configured column values from additionalData
             try {
                 const parsed = JSON.parse(r.additionalData || '{}');
-                const arr = Object.keys(parsed).map(k => ({ key: k, value: String(parsed[k]) }));
-                setDynamicFields(arr);
-            } catch(e) { setDynamicFields([]); }
+                configuredColumns.forEach(col => {
+                    baseForm[col] = parsed[col] || '';
+                });
+            } catch(e) {}
         } else {
             setEditingId(null);
-            setForm({ name: '', phone: '', additionalData: '{}' });
-            setDynamicFields([]);
         }
+        setForm(baseForm);
         setShowModal(true);
     };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Rebuild JSON from dynamicFields
-            const parsedObj: Record<string, string> = {};
-            dynamicFields.forEach(f => {
-                if(f.key.trim() !== '') parsedObj[f.key.trim()] = f.value;
+            // Rebuild additionalData from configured columns
+            const additionalData: Record<string, string> = {};
+            configuredColumns.forEach(col => {
+                if (form[col] && form[col].trim() !== '') {
+                    additionalData[col] = form[col].trim();
+                }
             });
+
             const payload = {
                 name: form.name,
                 phone: form.phone,
-                additionalData: JSON.stringify(parsedObj)
+                additionalData: JSON.stringify(additionalData)
             };
 
             const method = editingId ? 'PUT' : 'POST';
@@ -223,8 +218,8 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
             {importSuccess > 0 && (
                 <div className="bg-emerald-50 text-emerald-800 p-4 rounded-lg flex items-start gap-3 border border-emerald-100">
                     <div className="flex-1">
-                        <p className="font-semibold text-sm">✅ Importación Parcial/Total exitosa</p>
-                        <p className="text-sm mt-1">{importSuccess} residentes fueron insertados a la base de datos correctamente.</p>
+                        <p className="font-semibold text-sm">✅ Importación exitosa</p>
+                        <p className="text-sm mt-1">{importSuccess} residentes fueron insertados correctamente.</p>
                     </div>
                 </div>
             )}
@@ -240,7 +235,7 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                 </div>
             )}
 
-            {/* Modal de CRUD Manual */}
+            {/* Modal de CRUD Manual — Usa campos globales configurados */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
@@ -260,46 +255,30 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                                     <p className="text-xs text-gray-500 mt-1">Este será el identificador único del residente.</p>
                                 </div>
 
-                                <div className="pt-4 border-t mt-4">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h3 className="text-sm font-bold text-gray-800">Campos Personalizados (Opcional)</h3>
-                                        <button type="button" onClick={() => setDynamicFields([...dynamicFields, {key:'', value:''}])} className="text-xs text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1">
-                                            <Plus className="h-3 w-3" /> Añadir Campo
-                                        </button>
+                                {configuredColumns.length > 0 && (
+                                    <div className="pt-4 border-t mt-4">
+                                        <h3 className="text-sm font-bold text-gray-800 mb-3">Campos Configurados</h3>
+                                        <div className="space-y-3">
+                                            {configuredColumns.map((col, idx) => (
+                                                <div key={idx}>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">{col}</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={form[col] || ''} 
+                                                        onChange={e => setForm({...form, [col]: e.target.value})} 
+                                                        className="w-full border p-2 text-sm rounded outline-none focus:border-indigo-500" 
+                                                        placeholder={`Ingresa ${col}...`} 
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-gray-500 mb-3">Añade información extra como "Número de Casa", "Torre", "Mascotas", etc.</p>
-                                    
-                                    <div className="space-y-2">
-                                        {dynamicFields.map((field, idx) => (
-                                            <div key={idx} className="flex gap-2">
-                                                <input required type="text" placeholder="Nombre Campo (Ej: Casa #)" value={field.key} onChange={e => {
-                                                    const newArr = [...dynamicFields];
-                                                    newArr[idx].key = e.target.value;
-                                                    setDynamicFields(newArr);
-                                                }} className="w-1/3 border p-2 text-sm rounded outline-none focus:border-indigo-500" />
-                                                
-                                                <input required type="text" placeholder="Valor" value={field.value} onChange={e => {
-                                                    const newArr = [...dynamicFields];
-                                                    newArr[idx].value = e.target.value;
-                                                    setDynamicFields(newArr);
-                                                }} className="flex-1 border p-2 text-sm rounded outline-none focus:border-indigo-500" />
-                                                
-                                                <button type="button" onClick={() => {
-                                                    const newArr = [...dynamicFields];
-                                                    newArr.splice(idx, 1);
-                                                    setDynamicFields(newArr);
-                                                }} className="p-2 text-gray-400 hover:text-red-600 border rounded">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                )}
                             </form>
                         </div>
                         <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3">
                             <button type="button" onClick={()=>setShowModal(false)} className="px-4 py-2 border rounded text-gray-700 text-sm font-medium hover:bg-gray-100">Cancelar</button>
-                            <button type="submit" form="resident-form" className={`px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors`}>Guardar Residente</button>
+                            <button type="submit" form="resident-form" className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors">Guardar Residente</button>
                         </div>
                     </div>
                 </div>
@@ -314,7 +293,7 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Nombre</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Teléfono</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Contacto CRM</th>
-                                {allDynamicColumns.map(col => (
+                                {configuredColumns.map(col => (
                                     <th key={col} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                                         {col}
                                     </th>
@@ -353,7 +332,7 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                                         </td>
                                         
                                         {/* Dynamic columns rendering */}
-                                        {allDynamicColumns.map(col => (
+                                        {configuredColumns.map(col => (
                                             <td key={col} className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 {parsedJson[col] || '-'}
                                             </td>

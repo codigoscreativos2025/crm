@@ -207,6 +207,166 @@ file: (archivo binario)`,
      "message": { "conversation": "Texto del mensaje" }
   }
 }`
+  },
+  // ═══════════════════ CONDOMINIOS ═══════════════════
+  {
+    method: 'GET',
+    path: '/api/condominiums',
+    title: '[Condominios] Obtener Condominio del Usuario',
+    description: 'Devuelve el condominio vinculado al usuario autenticado (relación 1:1). Si no existe, retorna exists: false.',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums" \\
+  -H "Cookie: next-auth.session-token=TU_SESSION"`,
+    responseJSON: `{
+  "exists": true,
+  "data": {
+    "id": 1,
+    "name": "Residencial Las Palmas",
+    "type": "CASA",
+    "residentFields": "[\\"Casa\\",\\"Correo\\"]",
+    "_count": { "residents": 24, "transactions": 58 }
+  }
+}`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums',
+    title: '[Condominios] Crear Condominio',
+    description: 'Crea un nuevo condominio. Solo 1 por usuario.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "name": "Torres del Sol", "type": "APARTAMENTO" }'`,
+    requestJSON: `{
+  "name": "Torres del Sol",
+  "type": "APARTAMENTO" // "CASA" o "APARTAMENTO"
+}`,
+    responseJSON: `{
+  "id": 1,
+  "name": "Torres del Sol",
+  "type": "APARTAMENTO"
+}`
+  },
+  {
+    method: 'PUT',
+    path: '/api/condominiums/{id}',
+    title: '[Condominios] Actualizar Configuración',
+    description: 'Actualiza nombre, tipo, columnas de residentes, categorías de ingresos/egresos, y día de facturación.',
+    curl: `curl -X PUT "https://crm.pivotsoluciones.com/api/condominiums/1" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "name": "Nuevo Nombre", "residentFields": "[\\"Casa\\"]" }'`,
+    requestJSON: `{
+  "name": "Nuevo Nombre",
+  "residentFields": "[\\"Casa\\",\\"Torre\\"]",
+  "incomeCategories": "[\\"Cuota\\",\\"Multa\\"]",
+  "expenseCategories": "[\\"Agua\\",\\"Luz\\"]",
+  "invoiceDay": 15
+}`,
+    responseJSON: `{
+  "id": 1,
+  "name": "Nuevo Nombre",
+  "residentFields": "[\\"Casa\\",\\"Torre\\"]"
+}`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/residents',
+    title: '[Condominios] Listar Residentes',
+    description: 'Retorna todos los residentes. Filtro opcional: ?phone=...',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents"`,
+    responseJSON: `[{
+  "id": 1,
+  "name": "Juan Pérez",
+  "phone": "+521234567890",
+  "additionalData": "{\\"Casa\\":\\"A-12\\"}",
+  "contactId": 5
+}]`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/residents',
+    title: '[Condominios] Registrar Residente',
+    description: 'Crea residente. Si el teléfono coincide con contacto CRM, se vincula automáticamente.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "name": "Ana", "phone": "+521112223333" }'`,
+    requestJSON: `{
+  "name": "Ana García",
+  "phone": "+521112223333",
+  "additionalData": "{\\"Casa\\":\\"B-5\\"}"
+}`,
+    responseJSON: `{
+  "id": 2,
+  "name": "Ana García",
+  "phone": "+521112223333"
+}`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/residents/import',
+    title: '[Condominios] Importar Residentes (Excel)',
+    description: 'Sube .xlsx con columnas Nombre, Teléfono (+ configuradas). Detecta duplicados y vincula CRM.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/import" \\
+  -F "file=@plantilla.xlsx"`,
+    requestJSON: `// FormData
+file: (archivo .xlsx)`,
+    responseJSON: `{ "success": true, "count": 15 }`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/residents/template',
+    title: '[Condominios] Descargar Plantilla Excel',
+    description: 'Descarga .xlsx con columnas configuradas para importación masiva.',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents/template" --output plantilla.xlsx`,
+    responseJSON: `// Archivo binario .xlsx`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/transactions',
+    title: '[Condominios] Listar Transacciones',
+    description: 'Retorna transacciones filtradas por ?type=INCOME o ?type=EXPENSE.',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/transactions?type=INCOME"`,
+    responseJSON: `[{
+  "id": 1, "type": "INCOME", "category": "Cuota Mensual",
+  "amount": 1500.00, "status": "RECONCILED",
+  "resident": { "name": "Juan" }
+}]`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/invoices/generate',
+    title: '[Condominios] Generar Facturas Mensuales',
+    description: 'Genera facturas PDF para todos los residentes del mes/año indicados.',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/invoices/generate" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "month": 3, "year": 2026, "amount": 1500 }'`,
+    requestJSON: `{ "month": 3, "year": 2026, "amount": 1500 }`,
+    responseJSON: `{ "success": true, "generated": 24 }`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/invoices/{invoiceId}/pdf',
+    title: '[Condominios] Descargar Factura PDF',
+    description: 'Genera y descarga el PDF de una factura específica.',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/invoices/5/pdf" --output factura.pdf`,
+    responseJSON: `// Archivo binario PDF`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/metrics/{metric}',
+    title: '[Condominios] Obtener Métrica Específica',
+    description: 'Métricas disponibles: totalResidents, totalIncome, totalExpenses, pendingTransactions, balance.',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/metrics/balance"`,
+    responseJSON: `{ "metric": "balance", "value": 45200.50 }`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/logs',
+    title: '[Condominios] Historial de Actividad',
+    description: 'Logs de auditoría. Filtrar con ?source=CRM o ?source=WHATSAPP.',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/logs?source=CRM"`,
+    responseJSON: `[{
+  "id": 1, "action": "Configuración actualizada",
+  "source": "CRM", "createdAt": "2026-03-25T12:00:00Z"
+}]`
   }
 ];
 
