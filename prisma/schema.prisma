@@ -174,8 +174,6 @@ model Invoice {
   notes          String?
   status         String      @default("PENDING")
   createdAt      DateTime    @default(now())
-
-  @@unique([condominiumId, month, year]) // Only 1 invoice per condo per month
 }
 
 model Resident {

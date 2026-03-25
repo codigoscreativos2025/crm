@@ -19,8 +19,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
 
         // Check if invoice already exists for this month/year
-        const existing = await prisma.invoice.findUnique({
-            where: { condominiumId_month_year: { condominiumId: id, month, year } }
+        const existing = await prisma.invoice.findFirst({
+            where: { condominiumId: id, month, year }
         });
         if (existing) {
             return NextResponse.json({ error: `Ya existe una factura para ${month}/${year}. Elimínela primero si desea regenerarla.` }, { status: 400 });
