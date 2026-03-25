@@ -21,39 +21,50 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
         }
 
-        // Parse template config
-        let template: any = {};
-        if (invoice.condominium.invoiceTemplate) {
-            try { template = JSON.parse(invoice.condominium.invoiceTemplate); } catch(e) {}
-        }
+        // Get expenses for this month to separate fixed and variable
+        const startDate = new Date(invoice.year, invoice.month - 1, 1);
+        const endDate = new Date(invoice.year, invoice.month, 1);
 
-        // Parse line items and separate fixed vs variable
-        // Fixed items have "[Fijo]" prefix
-        let allLineItems: { concept: string; amount: number }[] = [];
-        if (invoice.lineItems) {
-            try { allLineItems = JSON.parse(invoice.lineItems); } catch(e) {}
-        }
-
-        const fixedItems = allLineItems.filter(item => item.concept.startsWith('[Fijo]'));
-        const variableItems = allLineItems.filter(item => !item.concept.startsWith('[Fijo]'));
-
-        const fixedTotal = fixedItems.reduce((sum, item) => sum + item.amount, 0);
-        const variableTotal = variableItems.reduce((sum, item) => sum + item.amount, 0);
+        const expenses = await prisma.transaction.findMany({
+            where: {
+                condominiumId: condoId,
+                type: 'EXPENSE',
+                date: { gte: startDate, lt: endDate }
+            }
+        });
 
         // Get residents count
         const residentsCount = await prisma.resident.count({
             where: { condominiumId: condoId }
         });
 
-        const amountPerResident = residentsCount > 0 ? invoice.amount / residentsCount : 0;
+        if (residentsCount === 0) {
+            return NextResponse.json({ error: "No hay residentes registrados para calcular la plantilla" }, { status: 400 });
+        }
 
-        const headerTitle = template.headerTitle || 'ESTADO DE CUENTA';
+        // Separate fixed and variable expenses
+        const fixedExpenses = expenses.filter(e => e.isFixed);
+        const variableExpenses = expenses.filter(e => !e.isFixed);
+
+        // Calculate totals
+        const fixedTotal = fixedExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const variableTotal = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const grandTotal = fixedTotal + variableTotal;
+        const amountPerResident = grandTotal / residentsCount;
+
+        // Parse template config
+        let template: any = {};
+        if (invoice.condominium.invoiceTemplate) {
+            try { template = JSON.parse(invoice.condominium.invoiceTemplate); } catch(e) {}
+        }
+
+        const headerTitle = template.headerTitle || 'PLANTILLA DE GASTOS';
         const bodySize = template.bodySize || 11;
         const footerText = template.footerText || 'Gracias por su puntualidad.';
 
         const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-        // Use jsPDF (already installed) for server-side PDF generation
+        // Use jsPDF
         const { jsPDF } = await import('jspdf');
         // @ts-ignore
         const autoTable = (await import('jspdf-autotable')).default;
@@ -74,20 +85,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
 
         doc.text(`Factura N°: ${invoice.id.toString().padStart(6, '0')}`, 14, 58);
         doc.text(`Fecha: ${new Date(invoice.createdAt).toLocaleDateString()}`, 14, 66);
-        doc.text(`Estatus: ${invoice.status === 'PAID' ? 'PAGADA' : 'GENERADA'}`, 14, 74);
-
-        let currentY = 82;
+        
+        let currentY = 75;
 
         // FIXED EXPENSES SECTION
-        if (fixedItems.length > 0) {
+        if (fixedExpenses.length > 0) {
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('GASTOS FIJOS', 14, currentY);
             currentY += 5;
 
-            const fixedTableData = fixedItems.map(item => [
-                item.concept.replace('[Fijo] ', ''),
-                `$${item.amount.toFixed(2)}`
+            const fixedTableData = fixedExpenses.map(e => [
+                e.description || e.category,
+                `$${e.amount.toFixed(2)}`
             ]);
             fixedTableData.push(['SUBTOTAL GASTOS FIJOS', `$${fixedTotal.toFixed(2)}`]);
 
@@ -106,19 +116,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             });
 
             // @ts-ignore
-            currentY = doc.lastAutoTable.finalY + 8;
+            currentY = doc.lastAutoTable.finalY + 10;
         }
 
         // VARIABLE EXPENSES SECTION
-        if (variableItems.length > 0) {
+        if (variableExpenses.length > 0) {
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('GASTOS VARIABLES', 14, currentY);
             currentY += 5;
 
-            const variableTableData = variableItems.map(item => [
-                item.concept,
-                `$${item.amount.toFixed(2)}`
+            const variableTableData = variableExpenses.map(e => [
+                e.description || e.category,
+                `$${e.amount.toFixed(2)}`
             ]);
             variableTableData.push(['SUBTOTAL GASTOS VARIABLES', `$${variableTotal.toFixed(2)}`]);
 
@@ -137,52 +147,48 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             });
 
             // @ts-ignore
-            currentY = doc.lastAutoTable.finalY + 8;
+            currentY = doc.lastAutoTable.finalY + 10;
         }
 
-        // SUMMARY SECTION
-        if (residentsCount > 0) {
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('RESUMEN', 14, currentY);
-            currentY += 5;
-
-            const summaryData = [
-                ['Número de Residentes', residentsCount.toString()],
-                ['MONTO POR RESIDENTE', `$${amountPerResident.toFixed(2)}`]
-            ];
-
-            autoTable(doc, {
-                startY: currentY,
-                body: summaryData,
-                theme: 'plain',
-                styles: { fontSize: bodySize, cellPadding: 3 },
-                columnStyles: {
-                    0: { cellWidth: 80 },
-                    1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
-                }
-            });
-
-            // @ts-ignore
-            currentY = doc.lastAutoTable.finalY + 8;
-        }
-
-        // TOTAL
+        // TOTAL SUMMARY
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(`TOTAL: $${invoice.amount.toFixed(2)}`, 14, currentY + 5);
+        doc.text('RESUMEN TOTAL', 14, currentY);
+        currentY += 8;
+
+        const summaryData = [
+            ['Total Gastos Fijos', `$${fixedTotal.toFixed(2)}`],
+            ['Total Gastos Variables', `$${variableTotal.toFixed(2)}`],
+            ['TOTAL A DISTRIBUIR', `$${grandTotal.toFixed(2)}`],
+            ['Número de Residentes', residentsCount.toString()],
+            ['MONTO POR RESIDENTE', `$${amountPerResident.toFixed(2)}`]
+        ];
+
+        autoTable(doc, {
+            startY: currentY,
+            body: summaryData,
+            theme: 'plain',
+            styles: { fontSize: bodySize, cellPadding: 4 },
+            columnStyles: {
+                0: { cellWidth: 80, fontStyle: 'bold' },
+                1: { cellWidth: 50, halign: 'right' }
+            }
+        });
+
+        // @ts-ignore
+        const finalY = doc.lastAutoTable.finalY || 150;
 
         // Notes
         if (invoice.notes) {
             doc.setFontSize(bodySize);
             doc.setFont('helvetica', 'italic');
-            doc.text(`Notas: ${invoice.notes}`, 14, currentY + 20);
+            doc.text(`Notas: ${invoice.notes}`, 14, finalY + 15);
         }
 
         // Footer
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.text(footerText, 105, currentY + 40, { align: 'center' });
+        doc.text(footerText, 105, finalY + 30, { align: 'center' });
 
         const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
@@ -190,12 +196,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `inline; filename="Factura_${invoice.id}_${invoice.month}_${invoice.year}.pdf"`
+                'Content-Disposition': `inline; filename="Plantilla_Factura_${invoice.id}_${invoice.month}_${invoice.year}.pdf"`
             }
         });
 
     } catch (e) {
-        console.error("Error creating PDF", e);
-        return NextResponse.json({ error: "Error interno generando PDF" }, { status: 500 });
+        console.error("Error creating template PDF", e);
+        return NextResponse.json({ error: "Error interno generando plantilla" }, { status: 500 });
     }
 }

@@ -157,7 +157,7 @@ export default function InvoicesTab({ condoId }: { condoId: number }) {
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex gap-2 justify-end">
                                                 <button onClick={() => openEditor(inv)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium rounded transition-colors">
-                                                    <Eye className="h-4 w-4" /> Ver / Editar
+                                                    <Eye className="h-4 w-4" /> Ver
                                                 </button>
                                                 <a 
                                                     href={`/api/condominiums/${condoId}/invoices/${inv.id}/pdf`}
@@ -165,6 +165,13 @@ export default function InvoicesTab({ condoId }: { condoId: number }) {
                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded transition-colors"
                                                 >
                                                     <Download className="h-4 w-4" /> PDF
+                                                </a>
+                                                <a 
+                                                    href={`/api/condominiums/${condoId}/invoices/${inv.id}/template`}
+                                                    target="_blank"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded transition-colors"
+                                                >
+                                                    <FileText className="h-4 w-4" /> Plantilla
                                                 </a>
                                                 <button onClick={() => handleDelete(inv.id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium rounded transition-colors">
                                                     <Trash2 className="h-4 w-4" />

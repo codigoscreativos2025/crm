@@ -1,12 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Info, DollarSign } from 'lucide-react';
-
-interface FixedCost {
-    name: string;
-    amount: number;
-}
+import { Plus, Trash2, Save, Info } from 'lucide-react';
 
 export default function SettingsTab({ condoId }: { condoId: number }) {
     const [loading, setLoading] = useState(true);
@@ -21,7 +16,6 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
     const [residentFields, setResidentFields] = useState<string[]>([]);
     const [incomeCategories, setIncomeCategories] = useState<string[]>(['Pago de Mantenimiento', 'Cuota Extraordinaria', 'Otro']);
     const [expenseCategories, setExpenseCategories] = useState<string[]>(['Agua', 'Luz', 'Servicios', 'Limpieza', 'Seguridad', 'Mantenimiento Elevador', 'Otro']);
-    const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
 
     useEffect(() => {
         fetchSettings();
@@ -45,9 +39,6 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                 if (data.expenseCategories) {
                     try { setExpenseCategories(JSON.parse(data.expenseCategories)); } catch(e){}
                 }
-                if (data.fixedCosts) {
-                    try { setFixedCosts(JSON.parse(data.fixedCosts)); } catch(e){}
-                }
             }
         } catch (error) {
             console.error(error);
@@ -62,7 +53,6 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
             const cleanResidents = residentFields.filter(f => f.trim() !== '');
             const cleanIncome = incomeCategories.filter(c => c.trim() !== '');
             const cleanExpense = expenseCategories.filter(c => c.trim() !== '');
-            const cleanFixed = fixedCosts.filter(fc => fc.name.trim() !== '');
 
             const payload = {
                 name,
@@ -70,8 +60,7 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                 invoiceDay,
                 residentFields: JSON.stringify(cleanResidents),
                 incomeCategories: JSON.stringify(cleanIncome),
-                expenseCategories: JSON.stringify(cleanExpense),
-                fixedCosts: JSON.stringify(cleanFixed)
+                expenseCategories: JSON.stringify(cleanExpense)
             };
 
             const res = await fetch(`/api/condominiums/${condoId}`, {
@@ -160,72 +149,6 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                         <input required type="number" min="1" max="28" value={invoiceDay} onChange={e=>setInvoiceDay(Number(e.target.value))} className="w-full px-3 py-2 border rounded-md focus:border-indigo-500 outline-none transition" />
                         <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Info className="h-3 w-3"/> Las facturas de mantenimiento se crearán este día del mes.</p>
                     </div>
-                </div>
-            </div>
-
-            {/* Costos Fijos */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <DollarSign className="h-5 w-5 text-green-600" /> Costos Fijos Mensuales
-                    </h2>
-                    <button type="button" onClick={() => setFixedCosts([...fixedCosts, { name: '', amount: 0 }])} className="text-sm flex items-center gap-1 text-green-600 font-medium hover:text-green-800">
-                        <Plus className="h-4 w-4" /> Añadir Costo Fijo
-                    </button>
-                </div>
-                <p className="text-sm text-gray-500 mb-4">Estos costos se añadirán automáticamente al balance de cada factura mensual generada.</p>
-                <div className="space-y-3">
-                    {fixedCosts.map((fc, idx) => (
-                        <div key={idx} className="flex gap-3 items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
-                            <input
-                                required
-                                type="text"
-                                placeholder="Nombre (Ej: Vigilancia)"
-                                value={fc.name}
-                                onChange={(e) => {
-                                    const updated = [...fixedCosts];
-                                    updated[idx] = { ...updated[idx], name: e.target.value };
-                                    setFixedCosts(updated);
-                                }}
-                                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:border-green-500 outline-none"
-                            />
-                            <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                                <input
-                                    required
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    placeholder="Monto"
-                                    value={fc.amount || ''}
-                                    onChange={(e) => {
-                                        const updated = [...fixedCosts];
-                                        updated[idx] = { ...updated[idx], amount: parseFloat(e.target.value) || 0 };
-                                        setFixedCosts(updated);
-                                    }}
-                                    className="w-32 pl-7 pr-3 py-2 text-sm border border-gray-300 rounded focus:border-green-500 outline-none"
-                                />
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const updated = [...fixedCosts];
-                                    updated.splice(idx, 1);
-                                    setFixedCosts(updated);
-                                }}
-                                className="p-2 text-gray-400 hover:text-red-500 border rounded bg-white transition-colors"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </button>
-                        </div>
-                    ))}
-                    {fixedCosts.length === 0 && <p className="text-sm text-gray-400 italic text-center py-4">No hay costos fijos configurados. Los costos fijos se sumarán automáticamente a cada factura mensual.</p>}
-                    {fixedCosts.length > 0 && (
-                        <div className="flex justify-end items-center gap-2 pt-2 border-t border-gray-100">
-                            <span className="text-sm font-medium text-gray-600">Total Mensual Fijo:</span>
-                            <span className="text-lg font-bold text-green-700">${fixedCosts.reduce((s, fc) => s + (fc.amount || 0), 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                        </div>
-                    )}
                 </div>
             </div>
 

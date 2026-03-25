@@ -320,7 +320,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     {t.receiptUrl ? (
-                                        <a href={t.receiptUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 flex flex-col items-center justify-center text-xs">
+                                        <a href={`/api/files/${t.receiptUrl.replace('/uploads/', '')}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 flex flex-col items-center justify-center text-xs">
                                             <FileText className="h-5 w-5 mb-0.5" />
                                             Ver
                                         </a>
