@@ -1,32 +1,59 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, CheckCircle, Clock, FileText, Upload, Trash2, Edit } from 'lucide-react';
+import { Plus, CheckCircle, Clock, FileText, Upload, Trash2, Edit, ChevronDown, Calendar, Pin, Save, X } from 'lucide-react';
 
 export default function TransactionsTab({ condoId, type }: { condoId: number, type: 'INCOME' | 'EXPENSE' }) {
     const [transactions, setTransactions] = useState<any[]>([]);
     const [residents, setResidents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [categories, setCategories] = useState<string[]>([]);
 
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ category: '', amount: '', description: '', residentId: '', status: 'PENDING', date: new Date().toISOString().substring(0, 10) });
+    const [form, setForm] = useState({ category: '', amount: '', description: '', residentId: '', status: 'PENDING', date: new Date().toISOString().substring(0, 10), isFixed: false });
 
     const [uploadingReceipt, setUploadingReceipt] = useState<number | null>(null);
 
+    // Month filter
+    const [filterMonth, setFilterMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
+
+    // Inline editing
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editAmount, setEditAmount] = useState('');
+
     useEffect(() => {
         fetchData();
-    }, [type, condoId]);
+    }, [type, condoId, filterMonth]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [tRes, rRes] = await Promise.all([
-                fetch(`/api/condominiums/${condoId}/transactions?type=${type}`),
-                type === 'INCOME' ? fetch(`/api/condominiums/${condoId}/residents`) : Promise.resolve(null)
+            // Parse filterMonth to get date range
+            const [year, month] = filterMonth.split('-').map(Number);
+            const startDate = new Date(year, month - 1, 1).toISOString();
+            const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+
+            const [tRes, rRes, settingsRes] = await Promise.all([
+                fetch(`/api/condominiums/${condoId}/transactions?type=${type}&startDate=${startDate}&endDate=${endDate}`),
+                type === 'INCOME' ? fetch(`/api/condominiums/${condoId}/residents`) : Promise.resolve(null),
+                fetch(`/api/condominiums/${condoId}`)
             ]);
 
             if (tRes.ok) setTransactions(await tRes.json());
             if (rRes && rRes.ok) setResidents(await rRes.json());
+            if (settingsRes.ok) {
+                const data = await settingsRes.json();
+                const catKey = type === 'INCOME' ? 'incomeCategories' : 'expenseCategories';
+                if (data[catKey]) {
+                    try { 
+                        const parsed = JSON.parse(data[catKey]);
+                        if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+                    } catch(e) {}
+                }
+            }
         } catch (e) {
             console.error(e);
         }
@@ -40,7 +67,10 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
             if (type === 'INCOME' && form.residentId) {
                 payload.residentId = form.residentId;
             } else {
-                delete payload.residentId; // Cleanup if expense
+                delete payload.residentId;
+            }
+            if (type === 'EXPENSE') {
+                payload.isFixed = form.isFixed;
             }
 
             const res = await fetch(`/api/condominiums/${condoId}/transactions`, {
@@ -51,7 +81,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
 
             if (res.ok) {
                 setShowModal(false);
-                setForm({ category: '', amount: '', description: '', residentId: '', status: 'PENDING', date: new Date().toISOString().substring(0, 10) });
+                setForm({ category: '', amount: '', description: '', residentId: '', status: 'PENDING', date: new Date().toISOString().substring(0, 10), isFixed: false });
                 fetchData();
             }
         } catch (e) {}
@@ -97,8 +127,25 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
             alert('Error subiendo archivo');
         } finally {
             setUploadingReceipt(null);
-            e.target.value = ''; // Reset
+            e.target.value = '';
         }
+    };
+
+    const handleStartEdit = (t: any) => {
+        setEditingId(t.id);
+        setEditAmount(t.amount.toString());
+    };
+
+    const handleSaveAmount = async (tId: number) => {
+        try {
+            await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: parseFloat(editAmount) })
+            });
+            setEditingId(null);
+            fetchData();
+        } catch(e) { alert('Error guardando.'); }
     };
 
     const formatCurrency = (val: number) => `$ ${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})}`;
@@ -108,28 +155,44 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
     const textColor = type === 'INCOME' ? 'text-emerald-700' : 'text-red-700';
     const btnColor = type === 'INCOME' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700';
 
-    if (loading) return <div className="text-center p-10 text-gray-500">Cargando transacciones...</div>;
-
     const pendingCount = transactions.filter(t => t.status === 'PENDING').length;
+    const total = transactions.reduce((s: number, t: any) => s + t.amount, 0);
+
+    // Default categories if none configured
+    const defaultIncome = ['Cuota Mensual', 'Cuota Especial', 'Multa', 'Reserva', 'Otro Ingreso'];
+    const defaultExpense = ['Servicios', 'Mantenimiento', 'Jardineria', 'Administracion', 'Seguridad', 'Gastos Bancarios', 'Otro Gasto'];
+    const catOptions = categories.length > 0 ? categories : (type === 'INCOME' ? defaultIncome : defaultExpense);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800">
                         {type === 'INCOME' ? 'Ingresos y Pagos' : 'Egresos y Gastos'}
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">
-                        {pendingCount} por conciliar de {transactions.length} registros.
+                        {pendingCount} por conciliar de {transactions.length} registros. Total: <span className="font-bold">{formatCurrency(total)}</span>
                     </p>
                 </div>
-                <button 
-                    onClick={() => setShowModal(true)}
-                    className={`flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md shadow-sm transition-colors ${btnColor}`}
-                >
-                    <Plus className="h-4 w-4" /> 
-                    Nuevo {type === 'INCOME' ? 'Ingreso' : 'Egreso'}
-                </button>
+                <div className="flex gap-3 items-center">
+                    {/* Month Picker */}
+                    <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <input 
+                            type="month" 
+                            value={filterMonth} 
+                            onChange={e => setFilterMonth(e.target.value)}
+                            className="text-sm outline-none bg-transparent font-medium text-gray-700"
+                        />
+                    </div>
+                    <button 
+                        onClick={() => setShowModal(true)}
+                        className={`flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md shadow-sm transition-colors ${btnColor}`}
+                    >
+                        <Plus className="h-4 w-4" /> 
+                        Nuevo {type === 'INCOME' ? 'Ingreso' : 'Egreso'}
+                    </button>
+                </div>
             </div>
 
             {/* Modal de Creación */}
@@ -149,25 +212,9 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                                 <select required value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full border p-2 rounded outline-none focus:border-indigo-500">
                                     <option value="">Seleccione Categoría</option>
-                                    {type === 'INCOME' ? (
-                                        <>
-                                            <option value="Cuota Mensual">Cuota Mensual Mantenimiento</option>
-                                            <option value="Cuota Especial">Cuota Especial</option>
-                                            <option value="Multa">Pago de Multa/Penalidad</option>
-                                            <option value="Reserva">Reserva Área Común</option>
-                                            <option value="Otro Ingreso">Otro</option>
-                                        </>
-                                    ):(
-                                        <>
-                                            <option value="Servicios">Servicios Básicos (Agua/Luz)</option>
-                                            <option value="Mantenimiento">Mantenimiento y Refacciones</option>
-                                            <option value="Jardineria">Jardinería / Limpieza</option>
-                                            <option value="Administracion">Honorarios Administrativos</option>
-                                            <option value="Seguridad">Empresa de Seguridad</option>
-                                            <option value="Gastos Bancarios">Gastos Bancarios e Impuestos</option>
-                                            <option value="Otro Gasto">Otro Egreso Extraordinario</option>
-                                        </>
-                                    )}
+                                    {catOptions.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -180,6 +227,21 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                             <option key={r.id} value={r.id}>{r.name} - {r.phone}</option>
                                         ))}
                                     </select>
+                                </div>
+                            )}
+
+                            {type === 'EXPENSE' && (
+                                <div className="flex items-center gap-3 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                                    <input 
+                                        type="checkbox" 
+                                        id="isFixed" 
+                                        checked={form.isFixed} 
+                                        onChange={e => setForm({...form, isFixed: e.target.checked})}
+                                        className="h-4 w-4 text-indigo-600 rounded border-gray-300"
+                                    />
+                                    <label htmlFor="isFixed" className="text-sm text-amber-800 flex items-center gap-1.5">
+                                        <Pin className="h-4 w-4" /> <strong>Gasto Fijo</strong> — Se replicará automáticamente cada mes
+                                    </label>
                                 </div>
                             )}
 
@@ -217,16 +279,44 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                        {transactions.map(t => (
+                        {loading ? (
+                            <tr><td colSpan={7} className="text-center p-8 text-gray-500"><div className="animate-spin inline-block h-6 w-6 border-b-2 border-indigo-600 rounded-full"></div></td></tr>
+                        ) : transactions.length === 0 ? (
+                            <tr><td colSpan={7} className="text-center p-10 text-gray-500">No hay registros para este mes.</td></tr>
+                        ) : transactions.map(t => (
                             <tr key={t.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 text-sm text-gray-900">{formatDate(t.date)}</td>
                                 <td className="px-6 py-4">
-                                    <div className="text-sm font-medium text-gray-900">{t.description || 'Sin concepto'}</div>
+                                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                                        {t.isFixed && <span title="Gasto Fijo"><Pin className="h-3.5 w-3.5 text-amber-500" /></span>}
+                                        {t.description || 'Sin concepto'}
+                                    </div>
                                     {t.resident && <div className="text-xs text-indigo-600 mt-1 font-medium bg-indigo-50 inline-block px-2 py-0.5 rounded-full">{t.resident.name}</div>}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500">{t.category}</td>
                                 <td className={`px-6 py-4 text-sm font-bold text-right ${textColor}`}>
-                                    {type==='EXPENSE'?'-':''}{formatCurrency(t.amount)}
+                                    {editingId === t.id ? (
+                                        <div className="flex items-center gap-1 justify-end">
+                                            <input 
+                                                type="number" 
+                                                step="0.01" 
+                                                value={editAmount} 
+                                                onChange={e => setEditAmount(e.target.value)}
+                                                className="w-24 border rounded p-1 text-sm text-right outline-none focus:border-indigo-500"
+                                                autoFocus
+                                            />
+                                            <button onClick={() => handleSaveAmount(t.id)} className="text-green-600 hover:text-green-800 p-1"><Save className="h-4 w-4" /></button>
+                                            <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600 p-1"><X className="h-4 w-4" /></button>
+                                        </div>
+                                    ) : (
+                                        <span 
+                                            className="cursor-pointer hover:underline"
+                                            onClick={() => handleStartEdit(t)} 
+                                            title="Click para editar monto"
+                                        >
+                                            {type==='EXPENSE'?'-':''}{formatCurrency(t.amount)}
+                                        </span>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     {t.receiptUrl ? (
@@ -264,9 +354,6 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                 </td>
                             </tr>
                         ))}
-                        {transactions.length === 0 && (
-                            <tr><td colSpan={7} className="text-center p-10 text-gray-500">No hay registros aún. Crea uno nuevo.</td></tr>
-                        )}
                     </tbody>
                 </table>
             </div>

@@ -17,7 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string, 
         }
 
         const body = await req.json();
-        const { category, amount, description, status, date, type, residentId } = body;
+        const { category, amount, description, status, date, type, residentId, isFixed } = body;
 
         const userId = parseInt(session.user.id);
         const user = await prisma.user.findUnique({
@@ -49,6 +49,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string, 
         if (status && (status === 'PENDING' || status === 'RECONCILED')) dataToUpdate.status = status;
         if (date) dataToUpdate.date = new Date(date);
         if (type && (type === 'INCOME' || type === 'EXPENSE')) dataToUpdate.type = type;
+        if (isFixed !== undefined) dataToUpdate.isFixed = isFixed;
         
         // Handle Resident ID Update (Only applicable for INCOME generally)
         if (residentId !== undefined) {

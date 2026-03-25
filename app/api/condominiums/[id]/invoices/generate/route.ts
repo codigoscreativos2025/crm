@@ -42,15 +42,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 type: 'EXPENSE',
                 date: { gte: startDate, lt: endDate }
             },
-            select: { category: true, amount: true, description: true }
+            select: { category: true, amount: true, description: true, isFixed: true }
         });
 
-        // Build line items from expenses
+        // Also include FIXED expenses from previous months that haven't been replicated here yet
+        // Fixed expenses are identified by isFixed=true from any prior month
+        const fixedFromPrior = await prisma.transaction.findMany({
+            where: {
+                condominiumId: id,
+                type: 'EXPENSE',
+                isFixed: true,
+                date: { lt: startDate }
+            },
+            select: { category: true, amount: true, description: true },
+            distinct: ['category', 'description']
+        });
+
+        // Build line items from current month expenses
         const lineItems: { concept: string; amount: number }[] = [];
 
         // Group expenses by category
         const categoryTotals: Record<string, number> = {};
-        expenses.forEach(e => {
+        expenses.forEach((e: any) => {
             const key = e.category || 'Sin categoría';
             categoryTotals[key] = (categoryTotals[key] || 0) + e.amount;
         });
@@ -59,13 +72,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             lineItems.push({ concept: cat, amount: amt });
         });
 
-        // Add fixed costs from condo config
-        let fixedCosts: { name: string; amount: number }[] = [];
-        if (condo.fixedCosts) {
-            try { fixedCosts = JSON.parse(condo.fixedCosts); } catch(e) {}
-        }
-        fixedCosts.forEach(fc => {
-            lineItems.push({ concept: `[Fijo] ${fc.name}`, amount: fc.amount });
+        // Add fixed costs from prior months that aren't already in this month
+        const existingCats = new Set(Object.keys(categoryTotals));
+        fixedFromPrior.forEach((fc: any) => {
+            const key = `[Fijo] ${fc.description || fc.category}`;
+            if (!existingCats.has(fc.category)) {
+                lineItems.push({ concept: key, amount: fc.amount });
+            }
         });
 
         // Total amount

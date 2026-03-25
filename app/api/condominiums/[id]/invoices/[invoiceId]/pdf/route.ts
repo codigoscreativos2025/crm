@@ -34,125 +34,73 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
         }
 
         const headerTitle = template.headerTitle || 'ESTADO DE CUENTA';
-        const headerFont = template.headerFont || 'Helvetica';
-        const headerSize = template.headerSize || 18;
-        const bodyFont = template.bodyFont || 'Helvetica';
         const bodySize = template.bodySize || 11;
         const footerText = template.footerText || 'Gracias por su puntualidad.';
-        const footerSize = template.footerSize || 10;
-
-        // Build table body from line items
-        const tableBody: any[] = [
-            [
-                { text: 'CONCEPTO', fillColor: '#eeeeee', bold: true, font: bodyFont, fontSize: bodySize },
-                { text: 'IMPORTE', fillColor: '#eeeeee', alignment: 'right', bold: true, font: bodyFont, fontSize: bodySize }
-            ]
-        ];
-
-        lineItems.forEach(item => {
-            tableBody.push([
-                { text: item.concept, font: bodyFont, fontSize: bodySize },
-                { text: `$${item.amount.toFixed(2)}`, alignment: 'right', font: bodyFont, fontSize: bodySize }
-            ]);
-        });
-
-        tableBody.push([
-            { text: 'TOTAL:', bold: true, alignment: 'right', font: bodyFont, fontSize: bodySize + 1 },
-            { text: `$${invoice.amount.toFixed(2)}`, bold: true, alignment: 'right', font: bodyFont, fontSize: bodySize + 1 }
-        ]);
-
-        const fonts = {
-            Helvetica: { normal: 'Helvetica', bold: 'Helvetica-Bold', italics: 'Helvetica-Oblique', bolditalics: 'Helvetica-BoldOblique' },
-            Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
-            Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' }
-        };
-
-        // @ts-ignore - pdfmake types don't match runtime export
-        const PdfPrinter = require('pdfmake/src/printer');
-        const printer = new PdfPrinter(fonts);
 
         const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-        const docDefinition: any = {
-            defaultStyle: { font: bodyFont },
-            content: [
-                {
-                    text: headerTitle,
-                    font: headerFont,
-                    fontSize: headerSize,
-                    bold: true,
-                    alignment: 'center',
-                    margin: [0, 0, 0, 10]
-                },
-                {
-                    text: invoice.condominium.name.toUpperCase(),
-                    font: headerFont,
-                    fontSize: headerSize - 4,
-                    bold: true,
-                    margin: [0, 0, 0, 5]
-                },
-                {
-                    text: `Periodo: ${monthNames[invoice.month - 1] || invoice.month} ${invoice.year}`,
-                    font: bodyFont,
-                    fontSize: bodySize,
-                    margin: [0, 0, 0, 5]
-                },
-                {
-                    columns: [
-                        {
-                            width: '*',
-                            text: [
-                                { text: 'Factura N°: ', bold: true },
-                                `${invoice.id.toString().padStart(6, '0')}\n`,
-                                { text: 'Fecha: ', bold: true },
-                                `${new Date(invoice.createdAt).toLocaleDateString()}\n`,
-                                { text: 'Estatus: ', bold: true },
-                                `${invoice.status === 'PAID' ? 'PAGADA' : 'GENERADA'}`
-                            ],
-                            font: bodyFont,
-                            fontSize: bodySize
-                        }
-                    ],
-                    margin: [0, 0, 0, 20]
-                },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['*', 'auto'],
-                        body: tableBody
-                    },
-                    layout: 'lightHorizontalLines'
-                },
-                ...(invoice.notes ? [{
-                    text: `Notas: ${invoice.notes}`,
-                    font: bodyFont,
-                    fontSize: bodySize,
-                    italics: true,
-                    margin: [0, 20, 0, 0]
-                }] : []),
-                {
-                    text: footerText,
-                    italics: true,
-                    margin: [0, 30, 0, 0],
-                    fontSize: footerSize,
-                    font: bodyFont,
-                    alignment: 'center'
-                }
-            ]
-        };
+        // Use jsPDF (already installed) for server-side PDF generation
+        const { jsPDF } = await import('jspdf');
+        // @ts-ignore
+        const autoTable = (await import('jspdf-autotable')).default;
 
-        const pdfDoc = printer.createPdfKitDocument(docDefinition);
+        const doc = new jsPDF();
 
-        const chunks: Buffer[] = [];
-        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        // Header
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text(headerTitle, 105, 25, { align: 'center' });
 
-        const returnBuffer = await new Promise<Buffer>((resolve, reject) => {
-            pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-            pdfDoc.on('error', reject);
-            pdfDoc.end();
+        doc.setFontSize(14);
+        doc.text((invoice.condominium.name || 'CONDOMINIO').toUpperCase(), 14, 40);
+
+        doc.setFontSize(bodySize);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Periodo: ${monthNames[invoice.month - 1] || invoice.month} ${invoice.year}`, 14, 50);
+
+        doc.text(`Factura N°: ${invoice.id.toString().padStart(6, '0')}`, 14, 60);
+        doc.text(`Fecha: ${new Date(invoice.createdAt).toLocaleDateString()}`, 14, 67);
+        doc.text(`Estatus: ${invoice.status === 'PAID' ? 'PAGADA' : 'GENERADA'}`, 14, 74);
+
+        // Table
+        const tableHead = [['CONCEPTO', 'IMPORTE']];
+        const tableBody = lineItems.map(item => [
+            item.concept,
+            `$${item.amount.toFixed(2)}`
+        ]);
+        tableBody.push(['TOTAL', `$${invoice.amount.toFixed(2)}`]);
+
+        autoTable(doc, {
+            startY: 82,
+            head: tableHead,
+            body: tableBody,
+            theme: 'striped',
+            headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold' },
+            footStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39], fontStyle: 'bold' },
+            styles: { fontSize: bodySize, cellPadding: 4 },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 50, halign: 'right' }
+            }
         });
 
-        return new Response(returnBuffer as unknown as BodyInit, {
+        // Notes
+        // @ts-ignore
+        const finalY = doc.lastAutoTable?.finalY || 150;
+        if (invoice.notes) {
+            doc.setFontSize(bodySize);
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Notas: ${invoice.notes}`, 14, finalY + 15);
+        }
+
+        // Footer
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.text(footerText, 105, finalY + 30, { align: 'center' });
+
+        const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+        return new Response(pdfBuffer as unknown as BodyInit, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',

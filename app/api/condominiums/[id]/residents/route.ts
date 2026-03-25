@@ -115,7 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 condominiumId: id,
                 name,
                 phone,
-                additionalData: additionalData ? JSON.stringify(additionalData) : null,
+                additionalData: additionalData || null,
                 contactId: crmContact ? crmContact.id : null
             }
         });

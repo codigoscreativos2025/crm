@@ -206,6 +206,7 @@ model Transaction {
   description    String?
   status         String      @default("PENDING") // 'PENDING' (Por conciliar), 'RECONCILED' (Conciliado)
   date           DateTime    @default(now())
+  isFixed        Boolean     @default(false) // Si es egreso fijo, se replica al mes siguiente
   
   // Soportes (Boucher / Recibo)
   receiptUrl     String?
