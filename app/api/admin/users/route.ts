@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
                 email: accountType === 'OWNER' ? finalEmail : null,
                 username: accountType === 'OWNER' ? null : finalUsername,
                 password, // Note: Should be hashed in prod
-                role: accountType === 'OWNER' ? 'ADMIN' : (role || 'USER'),
+                role: accountType === 'OWNER' ? 'USER' : (role || 'USER'),
                 apiKey,
                 isActive: isActive ?? true,
                 metricsEnabled: metricsEnabled ?? false,

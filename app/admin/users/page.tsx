@@ -287,7 +287,7 @@ export default function AdminUsersPage() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Cuenta</label>
                                     <div className="flex gap-4 mt-2">
                                         <label className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
-                                            <input type="radio" value="OWNER" className="cursor-pointer" checked={newUserForm.accountType === 'OWNER'} onChange={() => setNewUserForm({ ...newUserForm, accountType: 'OWNER', role: 'ADMIN', parentId: '' })} />
+                                            <input type="radio" value="OWNER" className="cursor-pointer" checked={newUserForm.accountType === 'OWNER'} onChange={() => setNewUserForm({ ...newUserForm, accountType: 'OWNER', role: 'USER', parentId: '' })} />
                                             Dueño (Principal)
                                         </label>
                                         <label className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
