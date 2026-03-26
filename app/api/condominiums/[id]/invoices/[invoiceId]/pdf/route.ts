@@ -28,14 +28,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
         }
 
-        // Parse template config
         let template: any = {};
         if (invoice.condominium.invoiceTemplate) {
             try { template = JSON.parse(invoice.condominium.invoiceTemplate); } catch(e) {}
         }
 
-        // Parse line items and separate fixed vs variable
-        // Fixed items have "[Fijo]" prefix
         let allLineItems: { concept: string; amount: number }[] = [];
         if (invoice.lineItems) {
             try { allLineItems = JSON.parse(invoice.lineItems); } catch(e) {}
@@ -47,7 +44,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
         const fixedTotal = fixedItems.reduce((sum, item) => sum + item.amount, 0);
         const variableTotal = variableItems.reduce((sum, item) => sum + item.amount, 0);
 
-        // Get residents count
         const residentsCount = await prisma.resident.count({
             where: { condominiumId: condoId }
         });
@@ -60,14 +56,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
 
         const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-        // Use jsPDF (already installed) for server-side PDF generation
         const { jsPDF } = await import('jspdf');
-        // @ts-ignore
         const autoTable = (await import('jspdf-autotable')).default;
 
         const doc = new jsPDF();
 
-        // Header
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.text(headerTitle, 105, 25, { align: 'center' });
@@ -85,108 +78,95 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
 
         let currentY = 82;
 
-        // FIXED EXPENSES SECTION
-        if (fixedItems.length > 0) {
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('GASTOS FIJOS', 14, currentY);
-            currentY += 5;
+        // GASTOS FIJOS - SIEMPRE SE MUESTRA
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('GASTOS FIJOS', 14, currentY);
+        currentY += 5;
 
-            const fixedTableData = fixedItems.map(item => [
-                item.concept.replace('[Fijo] ', ''),
-                `$${item.amount.toFixed(2)}`
-            ]);
-            fixedTableData.push(['SUBTOTAL GASTOS FIJOS', `$${fixedTotal.toFixed(2)}`]);
+        const fixedTableData = fixedItems.length > 0
+            ? fixedItems.map(item => [item.concept.replace('[Fijo] ', ''), `$${item.amount.toFixed(2)}`])
+            : [['Sin gastos registrados', '$0.00']];
+        fixedTableData.push(['SUBTOTAL GASTOS FIJOS', `$${fixedTotal.toFixed(2)}`]);
 
-            autoTable(doc, {
-                startY: currentY,
-                head: [['CONCEPTO', 'IMPORTE']],
-                body: fixedTableData,
-                theme: 'striped',
-                headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
-                footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
-                styles: { fontSize: bodySize - 1, cellPadding: 3 },
-                columnStyles: {
-                    0: { cellWidth: 'auto' },
-                    1: { cellWidth: 40, halign: 'right' }
-                }
-            });
+        autoTable(doc, {
+            startY: currentY,
+            head: [['CONCEPTO', 'IMPORTE']],
+            body: fixedTableData,
+            theme: 'striped',
+            headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+            styles: { fontSize: bodySize - 1, cellPadding: 3 },
+            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 40, halign: 'right' } }
+        });
 
-            // @ts-ignore
-            currentY = doc.lastAutoTable.finalY + 8;
-        }
+        // @ts-ignore
+        currentY = doc.lastAutoTable.finalY + 8;
 
-        // VARIABLE EXPENSES SECTION
-        if (variableItems.length > 0) {
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('GASTOS VARIABLES', 14, currentY);
-            currentY += 5;
+        // GASTOS VARIABLES - SIEMPRE SE MUESTRA
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('GASTOS VARIABLES', 14, currentY);
+        currentY += 5;
 
-            const variableTableData = variableItems.map(item => [
-                item.concept,
-                `$${item.amount.toFixed(2)}`
-            ]);
-            variableTableData.push(['SUBTOTAL GASTOS VARIABLES', `$${variableTotal.toFixed(2)}`]);
+        const variableTableData = variableItems.length > 0
+            ? variableItems.map(item => [item.concept, `$${item.amount.toFixed(2)}`])
+            : [['Sin gastos registrados', '$0.00']];
+        variableTableData.push(['SUBTOTAL GASTOS VARIABLES', `$${variableTotal.toFixed(2)}`]);
 
-            autoTable(doc, {
-                startY: currentY,
-                head: [['CONCEPTO', 'IMPORTE']],
-                body: variableTableData,
-                theme: 'striped',
-                headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255], fontStyle: 'bold' },
-                footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
-                styles: { fontSize: bodySize - 1, cellPadding: 3 },
-                columnStyles: {
-                    0: { cellWidth: 'auto' },
-                    1: { cellWidth: 40, halign: 'right' }
-                }
-            });
+        autoTable(doc, {
+            startY: currentY,
+            head: [['CONCEPTO', 'IMPORTE']],
+            body: variableTableData,
+            theme: 'striped',
+            headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255], fontStyle: 'bold' },
+            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+            styles: { fontSize: bodySize - 1, cellPadding: 3 },
+            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 40, halign: 'right' } }
+        });
 
-            // @ts-ignore
-            currentY = doc.lastAutoTable.finalY + 8;
-        }
+        // @ts-ignore
+        currentY = doc.lastAutoTable.finalY + 8;
 
-        // SUMMARY SECTION
-        if (residentsCount > 0) {
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('RESUMEN', 14, currentY);
-            currentY += 5;
+        // RESUMEN TOTAL - SIEMPRE SE MUESTRA
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMEN TOTAL', 14, currentY);
+        currentY += 8;
 
-            const summaryData = [
-                ['Número de Residentes', residentsCount.toString()],
-                ['MONTO POR RESIDENTE', `$${amountPerResident.toFixed(2)}`]
-            ];
+        const summaryData = [
+            ['Total Gastos Fijos', `$${fixedTotal.toFixed(2)}`],
+            ['Total Gastos Variables', `$${variableTotal.toFixed(2)}`],
+            ['TOTAL A DISTRIBUIR', `$${invoice.amount.toFixed(2)}`],
+            ['Número de Residentes', residentsCount.toString()],
+            ['MONTO POR RESIDENTE', `$${amountPerResident.toFixed(2)}`]
+        ];
 
-            autoTable(doc, {
-                startY: currentY,
-                body: summaryData,
-                theme: 'plain',
-                styles: { fontSize: bodySize, cellPadding: 3 },
-                columnStyles: {
-                    0: { cellWidth: 80 },
-                    1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
-                }
-            });
+        autoTable(doc, {
+            startY: currentY,
+            body: summaryData,
+            theme: 'plain',
+            styles: { fontSize: bodySize, cellPadding: 4 },
+            columnStyles: {
+                0: { cellWidth: 80, fontStyle: 'bold' },
+                1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
+            }
+        });
 
-            // @ts-ignore
-            currentY = doc.lastAutoTable.finalY + 8;
-        }
+        // @ts-ignore
+        const finalY = doc.lastAutoTable.finalY || 150;
 
-        // TOTAL
+        // TOTAL FINAL
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text(`TOTAL: $${invoice.amount.toFixed(2)}`, 14, currentY + 5);
 
-        // Notes
         if (invoice.notes) {
             doc.setFontSize(bodySize);
             doc.setFont('helvetica', 'italic');
             doc.text(`Notas: ${invoice.notes}`, 14, currentY + 20);
         }
 
-        // Footer
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
         doc.text(footerText, 105, currentY + 40, { align: 'center' });
