@@ -159,17 +159,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
         // TOTAL FINAL
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(`TOTAL: $${invoice.amount.toFixed(2)}`, 14, currentY + 5);
+        doc.text(`TOTAL: $${invoice.amount.toFixed(2)}`, 14, finalY + 5);
 
         if (invoice.notes) {
             doc.setFontSize(bodySize);
             doc.setFont('helvetica', 'italic');
-            doc.text(`Notas: ${invoice.notes}`, 14, currentY + 20);
+            doc.text(`Notas: ${invoice.notes}`, 14, finalY + 15);
         }
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.text(footerText, 105, currentY + 40, { align: 'center' });
+        doc.text(footerText, 105, finalY + 30, { align: 'center' });
 
         const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
