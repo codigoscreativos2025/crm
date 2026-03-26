@@ -1,32 +1,16 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function GET(req: NextRequest) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
-        const userId = parseInt(session.user.id);
-        
-        // Verifica si tiene la sección habilitada (opcional, pero buena práctica)
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { isCondoEnabled: true, parentId: true, role: true }
-        });
-
-        // Uncomment if you want strict access control
-        // if (!user?.isCondoEnabled && user?.role !== 'ADMIN') {
-        //     return NextResponse.json({ error: "Módulo de condominios no habilitado" }, { status: 403 });
-        // }
-
-        const ownerId = user?.parentId || userId;
-
-        // Como es 1:1, devolvemos el único condominio del ownerId, o null
         const condominium = await prisma.condominium.findUnique({
-            where: { userId: ownerId },
+            where: { userId: auth.ownerId },
             include: {
                 _count: {
                     select: { residents: true, transactions: true }
@@ -47,9 +31,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -64,16 +48,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
         }
 
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
         // Verificar si ya tiene uno (Relación 1:1)
         const existing = await prisma.condominium.findUnique({
-            where: { userId: ownerId }
+            where: { userId: auth.ownerId }
         });
 
         if (existing) {
@@ -84,7 +61,7 @@ export async function POST(req: NextRequest) {
             data: {
                 name,
                 type,
-                userId: ownerId
+                userId: auth.ownerId
             }
         });
 

@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -16,22 +16,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         const type = searchParams.get('type');
         const status = searchParams.get('status');
         const residentId = searchParams.get('residentId');
-        // Fechas opcionales
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
-
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
 
         const condo = await prisma.condominium.findUnique({
             where: { id: condoId }
         });
 
-        if (!condo || condo.userId !== ownerId) {
+        if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
@@ -66,9 +58,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -86,22 +78,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             return NextResponse.json({ error: "Tipo de transacción inválido" }, { status: 400 });
         }
 
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
         const condo = await prisma.condominium.findUnique({
             where: { id: condoId }
         });
 
-        if (!condo || condo.userId !== ownerId) {
+        if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        // Si es ingreso y envían residentId, validar que pertenece
         if (type === 'INCOME' && residentId) {
             const resData = await prisma.resident.findUnique({ where: { id: parseInt(residentId) } });
             if (!resData || resData.condominiumId !== condoId) {

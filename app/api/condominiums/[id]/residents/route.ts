@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -17,23 +17,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
         }
 
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
-        // Validar acceso al condominio
         const condo = await prisma.condominium.findUnique({
             where: { id }
         });
 
-        if (!condo || condo.userId !== ownerId) {
+        if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado para este condominio" }, { status: 403 });
         }
 
-        // Si pasan phone, buscar por phone
         const whereClause: any = { condominiumId: id };
         if (phone) {
             whereClause.phone = { contains: phone };
@@ -53,9 +44,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -68,57 +59,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const { name, phone, additionalData } = body;
 
         if (!name || !phone) {
-            return NextResponse.json({ error: "Faltan datos obligatorios (name, phone)" }, { status: 400 });
+            return NextResponse.json({ error: "Nombre y teléfono son requeridos" }, { status: 400 });
         }
-
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
 
         const condo = await prisma.condominium.findUnique({
             where: { id }
         });
 
-        if (!condo || condo.userId !== ownerId) {
-            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        if (!condo || condo.userId !== auth.ownerId) {
+            return NextResponse.json({ error: "No autorizado para este condominio" }, { status: 403 });
         }
 
-        // Validar duplicado por teléfono en este condominio
-        const existing = await prisma.resident.findUnique({
-            where: {
-                condominiumId_phone: {
-                    condominiumId: id,
-                    phone: phone
-                }
-            }
+        // Buscar si existe contacto CRM con ese teléfono
+        let contactId: number | null = null;
+        const contact = await prisma.contact.findFirst({
+            where: { phone: phone.replace('+', '') }
         });
-
-        if (existing) {
-            return NextResponse.json({ error: "Ya existe un residente con ese número telefónico en el condominio" }, { status: 400 });
+        if (contact) {
+            contactId = contact.id;
         }
-
-        // Buscar si existe un contacto CRM asociado para vincularlo (Opcional)
-        const crmContact = await prisma.contact.findUnique({
-            where: {
-                userId_phone: {
-                    userId: ownerId,
-                    phone: phone
-                }
-            }
-        });
 
         const newResident = await prisma.resident.create({
             data: {
-                condominiumId: id,
                 name,
                 phone,
                 additionalData: additionalData || null,
-                contactId: crmContact ? crmContact.id : null
+                condominiumId: id,
+                contactId
             }
         });
+
+        const { createCondoLog } = await import('../../logHelper');
+        await createCondoLog(id, `Nuevo residente registrado: ${name}`, "CRM");
 
         return NextResponse.json(newResident, { status: 201 });
 

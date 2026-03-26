@@ -1,16 +1,23 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { createCondoLog } from "../../../logHelper";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
 
     const id = parseInt(params.id);
     if (isNaN(id)) return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
 
     try {
+        const condo = await prisma.condominium.findUnique({ where: { id } });
+        if (!condo || condo.userId !== auth.ownerId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+
         const body = await req.json();
         const { month, year } = body;
 
@@ -18,7 +25,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
              return NextResponse.json({ error: "Mes y Año son requeridos." }, { status: 400 });
         }
 
-        // Check if invoice already exists for this month/year
         const existing = await prisma.invoice.findFirst({
             where: { condominiumId: id, month, year }
         });
@@ -26,13 +32,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             return NextResponse.json({ error: `Ya existe una factura para ${month}/${year}. Elimínela primero si desea regenerarla.` }, { status: 400 });
         }
 
-        const condo = await prisma.condominium.findUnique({
-            where: { id }
-        });
-
-        if (!condo) return NextResponse.json({ error: "Condominio no encontrado" }, { status: 404 });
-
-        // Get all expenses for that month/year
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 1);
 
@@ -45,8 +44,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             select: { category: true, amount: true, description: true, isFixed: true }
         });
 
-        // Also include FIXED expenses from previous months that haven't been replicated here yet
-        // Fixed expenses are identified by isFixed=true from any prior month
         const fixedFromPrior = await prisma.transaction.findMany({
             where: {
                 condominiumId: id,
@@ -58,10 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             distinct: ['category', 'description']
         });
 
-        // Build line items from current month expenses
         const lineItems: { concept: string; amount: number }[] = [];
-
-        // Group expenses by category
         const categoryTotals: Record<string, number> = {};
         expenses.forEach((e: any) => {
             const key = e.category || 'Sin categoría';
@@ -72,7 +66,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             lineItems.push({ concept: cat, amount: amt });
         });
 
-        // Add fixed costs from prior months that aren't already in this month
         const existingCats = new Set(Object.keys(categoryTotals));
         fixedFromPrior.forEach((fc: any) => {
             const key = `[Fijo] ${fc.description || fc.category}`;
@@ -81,7 +74,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             }
         });
 
-        // Total amount
         const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
 
         const invoice = await prisma.invoice.create({

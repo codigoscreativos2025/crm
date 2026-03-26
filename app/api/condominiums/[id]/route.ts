@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -13,13 +13,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         if (isNaN(id)) {
             return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
         }
-
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
 
         const condominium = await prisma.condominium.findUnique({
             where: { id },
@@ -30,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             }
         });
 
-        if (!condominium || condominium.userId !== ownerId) {
+        if (!condominium || condominium.userId !== auth.ownerId) {
             return NextResponse.json({ error: "Condominio no encontrado o sin permisos" }, { status: 404 });
         }
 
@@ -43,9 +36,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -57,19 +50,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
         }
 
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
         // Verificar que el condominio existe y pertenece al usuario
         const existing = await prisma.condominium.findUnique({
             where: { id }
         });
 
-        if (!existing || existing.userId !== ownerId) {
+        if (!existing || existing.userId !== auth.ownerId) {
             return NextResponse.json({ error: "Condominio no encontrado o sin permisos" }, { status: 404 });
         }
 
@@ -88,7 +74,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             data: dataToUpdate
         });
 
-        // Generar un LOG usando el helper
         const { createCondoLog } = await import('../logHelper');
         await createCondoLog(id, "Configuración del condominio actualizada", "CRM");
 
@@ -101,9 +86,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -112,18 +97,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
             return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
         }
 
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
         const existing = await prisma.condominium.findUnique({
             where: { id }
         });
 
-        if (!existing || existing.userId !== ownerId) {
+        if (!existing || existing.userId !== auth.ownerId) {
             return NextResponse.json({ error: "Condominio no encontrado o sin permisos" }, { status: 404 });
         }
 

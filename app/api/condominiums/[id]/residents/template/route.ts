@@ -1,41 +1,36 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { utils, write } from 'xlsx';
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
 
     const id = parseInt(params.id);
     if (isNaN(id)) return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
 
     try {
-        const condo = await prisma.condominium.findUnique({
-            where: { id }
-        });
-        if (!condo) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+        const condo = await prisma.condominium.findUnique({ where: { id } });
+        if (!condo || condo.userId !== auth.ownerId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
 
         let dynamicHeaders: string[] = [];
         if (condo.residentFields) {
             try {
-                // Parse residentFields config
                 dynamicHeaders = JSON.parse(condo.residentFields);
                 if (!Array.isArray(dynamicHeaders)) dynamicHeaders = [];
             } catch(e) {}
         }
 
-        // Columnas base
         const headers = ['Nombre', 'Teléfono', ...dynamicHeaders];
-
-        // Crear Libro de Excel (Book)
         const wb = utils.book_new();
-        // Crear Hoja (Sheet) poniendo las cabeceras en la fila 1
         const ws = utils.aoa_to_sheet([headers]);
-        
         utils.book_append_sheet(wb, ws, "Plantilla Residentes");
         
-        // Escribir a Buffer
         const buffer = write(wb, { type: 'buffer', bookType: 'xlsx' });
 
         return new NextResponse(buffer, {
