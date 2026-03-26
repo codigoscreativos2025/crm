@@ -241,6 +241,121 @@ const endpoints = [
     ],
     curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/metrics/income-vs-expense?userApiKey=TU_API_KEY&months=6"`,
     responseJSON: `[{\n  "month": "2026-03",\n  "income": 15000,\n  "expense": 8000\n}]`
+  },
+  // Pagos - Resident Payments
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments',
+    title: 'Listar Pagos de Residente',
+    description: 'Retorna todos los pagos de un residente específico.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'status', example: '?status=PENDING', description: 'Filtrar por estado: PENDING o RECONCILED' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY"`,
+    responseJSON: `[{\n  "id": 1,\n  "amount": 1500.00,\n  "status": "RECONCILED",\n  "paymentDate": "2026-03-15",\n  "month": 3,\n  "year": 2026\n}]`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments',
+    title: 'Registrar Pago',
+    description: 'Registra un nuevo pago para un residente. Puede ser parcial o completo.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": 1500, "paymentDate": "2026-03-15", "month": 3, "year": 2026}'`,
+    responseJSON: `{\n  "id": 1,\n  "amount": 1500.00,\n  "status": "PENDING"\n}`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments/{paymentId}/receipt',
+    title: 'Subir Comprobante de Pago',
+    description: 'Sube un archivo de comprobante (imagen/PDF) para un pago.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/1/receipt?userApiKey=TU_API_KEY" \\\n  -F "file=@comprobante.jpg"`,
+    responseJSON: `{\n  "success": true,\n  "receiptUrl": "/api/files/comprobante.jpg"\n}`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments/{paymentId}/reconcile',
+    title: 'Conciliar Pago',
+    description: 'Concilia un pago (marca como RECONCILED) y actualiza el estado de insolvencia.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/1/reconcile?userApiKey=TU_API_KEY"`,
+    responseJSON: `{\n  "success": true,\n  "payment": {\n    "id": 1,\n    "status": "RECONCILED"\n  }\n}`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments/debt',
+    title: 'Ver Deuda por Mes',
+    description: 'Retorna el detalle de la deuda por mes/año de un residente.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'year', example: '?year=2026', description: 'Filtrar por año' },
+      { name: 'month', example: '?month=3', description: 'Filtrar por mes específico' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/debt?userApiKey=TU_API_KEY&year=2026"`,
+    responseJSON: `[{\n  "id": 1,\n  "month": 3,\n  "year": 2026,\n  "amount": 1500.00,\n  "paid": 0,\n  "status": "PENDING"\n}]`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments/history',
+    title: 'Historial de Pagos PDF',
+    description: 'Genera un PDF con el historial de pagos de un residente (se abre en navegador).',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/history?userApiKey=TU_API_KEY" \\\n  -H "Accept: application/pdf"`,
+    responseJSON: `// Archivo binario PDF (inline)`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/payments/history',
+    title: 'Historial General de Pagos PDF',
+    description: 'Genera un PDF con el historial de pagos de todos los residentes.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'year', example: '?year=2026', description: 'Filtrar por año' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/payments/history?userApiKey=TU_API_KEY&year=2026" \\\n  -H "Accept: application/pdf"`,
+    responseJSON: `// Archivo binario PDF (inline)`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/metrics/solvent-residents',
+    title: 'Métricas de Solvencia',
+    description: 'Retorna el porcentaje de residentes solventes vs insolventes.',
+    category: 'Métricas',
+    auth: 'session | userApiKey',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/metrics/solvent-residents?userApiKey=TU_API_KEY"`,
+    responseJSON: `{\n  "total": 24,\n  "solvent": 18,\n  "insolvent": 6,\n  "percentage": 75.0\n}`
+  },
+  // Admin Endpoints
+  {
+    method: 'GET',
+    path: '/api/admin/condominiums/{id}/pending-payments',
+    title: 'Listar Pagos Pendientes (Admin)',
+    description: 'Retorna todos los pagos pendientes de conciliación del condominio.',
+    category: 'Admin',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'status', example: '?status=PENDING', description: 'Filtrar por estado' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/admin/condominiums/1/pending-payments?userApiKey=TU_API_KEY"`,
+    responseJSON: `[{\n  "id": 1,\n  "amount": 1500.00,\n  "status": "PENDING",\n  "resident": { "name": "Juan Pérez" }\n}]`
+  },
+  {
+    method: 'POST',
+    path: '/api/admin/condominiums/{id}/payments/{paymentId}/reconcile',
+    title: 'Conciliar Pago (Admin)',
+    description: 'Concilia un pago específico (admin). Actualiza automáticamente el estado de insolvencia.',
+    category: 'Admin',
+    auth: 'session | userApiKey',
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/admin/condominiums/1/payments/1/reconcile?userApiKey=TU_API_KEY"`,
+    responseJSON: `{\n  "success": true,\n  "payment": {\n    "id": 1,\n    "status": "RECONCILED"\n  },\n  "residentStatus": "SOLVENTE"\n}`
   }
 ];
 
@@ -267,6 +382,8 @@ const getCategoryIcon = (category: string) => {
     case 'Transacciones': return <CreditCard className="w-4 h-4" />;
     case 'Registros': return <History className="w-4 h-4" />;
     case 'Métricas': return <FileText className="w-4 h-4" />;
+    case 'Pagos': return <CreditCard className="w-4 h-4" />;
+    case 'Admin': return <FileText className="w-4 h-4" />;
     default: return <FileText className="w-4 h-4" />;
   }
 };
@@ -277,7 +394,9 @@ export default function ApiDocsPage() {
   const [activeSection, setActiveSection] = useState<string>('');
   const [categoriesOpen, setCategoriesOpen] = useState<{ [key: string]: boolean }>({
     'CRM': true,
-    'Condominios': true
+    'Condominios': true,
+    'Pagos': true,
+    'Admin': true
   });
 
   const handleCopy = (text: string, id: string) => {
@@ -370,6 +489,62 @@ export default function ApiDocsPage() {
               {categoriesOpen['Condominios'] && (
                 <ul className="space-y-1 pl-6">
                   {condoEndpoints.map((ep, idx) => {
+                    const originalIndex = endpoints.indexOf(ep);
+                    const isActive = activeSection === `ep-${originalIndex}`;
+                    return (
+                      <li key={idx}>
+                        <a href={`#ep-${originalIndex}`} className={`text-sm block truncate py-1.5 px-2 rounded transition-all border-l-2 ${isActive ? 'bg-indigo-50 text-indigo-700 border-indigo-500 font-medium' : 'text-gray-600 hover:text-gray-900 border-transparent hover:bg-gray-100'}`}>
+                          <span className={`text-[10px] font-bold mr-1.5 ${getMethodColor(ep.method).replace('bg-[', 'text-[')}`}>{ep.method}</span>
+                          {ep.title}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            
+            <div>
+              <button 
+                onClick={() => setCategoriesOpen(prev => ({ ...prev, 'Pagos': !prev['Pagos'] }))}
+                className="flex items-center text-sm font-semibold text-gray-900 mb-3 w-full text-left hover:text-blue-600 transition-colors"
+              >
+                <svg className={`w-4 h-4 mr-2 text-gray-500 transition-transform ${categoriesOpen['Pagos'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
+                </svg>
+                Pagos
+              </button>
+              {categoriesOpen['Pagos'] && (
+                <ul className="space-y-1 pl-6">
+                  {filteredEndpoints.filter(ep => ep.category === 'Pagos').map((ep, idx) => {
+                    const originalIndex = endpoints.indexOf(ep);
+                    const isActive = activeSection === `ep-${originalIndex}`;
+                    return (
+                      <li key={idx}>
+                        <a href={`#ep-${originalIndex}`} className={`text-sm block truncate py-1.5 px-2 rounded transition-all border-l-2 ${isActive ? 'bg-indigo-50 text-indigo-700 border-indigo-500 font-medium' : 'text-gray-600 hover:text-gray-900 border-transparent hover:bg-gray-100'}`}>
+                          <span className={`text-[10px] font-bold mr-1.5 ${getMethodColor(ep.method).replace('bg-[', 'text-[')}`}>{ep.method}</span>
+                          {ep.title}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <button 
+                onClick={() => setCategoriesOpen(prev => ({ ...prev, 'Admin': !prev['Admin'] }))}
+                className="flex items-center text-sm font-semibold text-gray-900 mb-3 w-full text-left hover:text-blue-600 transition-colors"
+              >
+                <svg className={`w-4 h-4 mr-2 text-gray-500 transition-transform ${categoriesOpen['Admin'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
+                </svg>
+                Admin
+              </button>
+              {categoriesOpen['Admin'] && (
+                <ul className="space-y-1 pl-6">
+                  {filteredEndpoints.filter(ep => ep.category === 'Admin').map((ep, idx) => {
                     const originalIndex = endpoints.indexOf(ep);
                     const isActive = activeSection === `ep-${originalIndex}`;
                     return (
