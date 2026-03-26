@@ -89,7 +89,52 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         await createCondoLog(id, `Factura mensual generada para ${month}/${year} - Total: $${totalAmount.toFixed(2)}`, "CRM");
 
-        return NextResponse.json({ success: true, invoice });
+        // Crear deudas mensuales para todos los residentes
+        const residents = await prisma.resident.findMany({
+            where: { condominiumId: id }
+        });
+
+        const amountPerResident = residents.length > 0 ? totalAmount / residents.length : 0;
+
+        for (const resident of residents) {
+            // Verificar si ya existe deuda para ese mes
+            const existingDebt = await prisma.residentDebt.findUnique({
+                where: {
+                    residentId_month_year: {
+                        residentId: resident.id,
+                        month,
+                        year
+                    }
+                }
+            });
+
+            if (!existingDebt) {
+                await prisma.residentDebt.create({
+                    data: {
+                        residentId: resident.id,
+                        condominiumId: id,
+                        month,
+                        year,
+                        amount: amountPerResident,
+                        invoiceId: invoice.id,
+                        isPaid: false
+                    }
+                });
+            }
+
+            // Cambiar a insolvente hasta que se recalcule
+            await prisma.resident.update({
+                where: { id: resident.id },
+                data: { status: 'INSOLVENTE' }
+            });
+        }
+
+        return NextResponse.json({ 
+            success: true, 
+            invoice,
+            debtsCreated: residents.length,
+            amountPerResident: amountPerResident
+        });
     } catch (e) {
         console.error("Error generating invoice:", e);
         return NextResponse.json({ error: "Error interno generando factura." }, { status: 500 });

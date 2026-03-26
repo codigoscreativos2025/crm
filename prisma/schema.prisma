@@ -140,17 +140,20 @@ model Condominium {
   updatedAt   DateTime   @updatedAt
 
   // Configuraciones del Condominio (JSON)
-  residentFields    String?
-  incomeCategories  String?
-  expenseCategories String?
-  fixedCosts        String?    // JSON: [{"name":"Vigilancia","amount":5000}]
-  invoiceTemplate   String?    // JSON: PDF layout config (fonts, sizes, titles, item order)
-  invoiceDay        Int        @default(1)
+  residentFields      String?
+  incomeCategories   String?
+  expenseCategories   String?
+  fixedCosts          String?    // JSON: [{"name":"Vigilancia","amount":5000}]
+  invoiceTemplate     String?    // JSON: PDF layout config (fonts, sizes, titles, item order)
+  invoiceDay          Int        @default(1)
+  paymentGraceDays    Int        @default(15) // Días de gracia para pagar
 
-  residents   Resident[]
-  transactions Transaction[]
-  logs        CondominiumLog[]
-  invoices    Invoice[]
+  residents     Resident[]
+  transactions  Transaction[]
+  logs          CondominiumLog[]
+  invoices      Invoice[]
+  residentDebts ResidentDebt[]
+  payments      Payment[]
 }
 
 model CondominiumLog {
@@ -190,7 +193,13 @@ model Resident {
   contactId      Int?
   contact        Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
+  // Estado de solvencia
+  status        String      @default("SOLVENTE")  // "SOLVENTE" o "INSOLVENTE"
+  advanceCredit  Float       @default(0)            // Saldo a favor (pagos anticipados)
+
   transactions   Transaction[]
+  residentDebts  ResidentDebt[]
+  payments      Payment[]
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -220,6 +229,42 @@ model Transaction {
   residentId     Int?
   resident       Resident?   @relation(fields: [residentId], references: [id], onDelete: SetNull)
 
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model ResidentDebt {
+  id             Int         @id @default(autoincrement())
+  residentId     Int
+  resident       Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  condominiumId Int
+  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  month          Int         // 1-12
+  year           Int
+  amount         Float       // Cuánto debe ese mes
+  amountPaid     Float       @default(0) // Cuánto ha pagado de esa deuda
+  invoiceId      Int?        // Referencia a la factura
+  isPaid         Boolean     @default(false) // Si está totalmente pagado
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  
+  @@unique([residentId, month, year])
+}
+
+model Payment {
+  id             Int         @id @default(autoincrement())
+  residentId     Int
+  resident       Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  condominiumId  Int
+  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  amount         Float
+  date           DateTime    @default(now())
+  status         String      @default("PENDING")  // "PENDING" o "RECONCILED"
+  receiptUrl     String?
+  receiptType    String?
+  notes          String?
+  month          Int?        // Mes que cancela (null = abono general)
+  year           Int?        // Año que cancela
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 }
