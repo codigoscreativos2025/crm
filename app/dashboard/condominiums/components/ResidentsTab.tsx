@@ -1,12 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Upload, Search, Edit2, Trash2, X, Download, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Upload, Search, Edit2, Trash2, X, Download, FileSpreadsheet, Filter, XCircle, Download as DownloadIcon } from 'lucide-react';
+
+interface FilterState {
+    status: string;
+    name: string;
+}
 
 export default function ResidentsTab({ condoId }: { condoId: number }) {
     const [residents, setResidents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Filters
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState<FilterState>({
+        status: '',
+        name: ''
+    });
 
     // Modal
     const [showModal, setShowModal] = useState(false);
@@ -50,6 +62,40 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
             console.error(e);
         }
         setLoading(false);
+    };
+
+    const hasActiveFilters = useMemo(() => {
+        return Object.values(filters).some(v => v !== '');
+    }, [filters]);
+
+    const clearFilters = () => {
+        setFilters({
+            status: '',
+            name: ''
+        });
+    };
+
+    const filtered = useMemo(() => {
+        return residents.filter(r => {
+            if (filters.status && r.status !== filters.status) return false;
+            if (filters.name) {
+                const searchLower = filters.name.toLowerCase();
+                if (!r.name.toLowerCase().includes(searchLower) && !r.phone.includes(filters.name)) return false;
+            }
+            if (searchTerm) {
+                const searchLower = searchTerm.toLowerCase();
+                if (!r.name.toLowerCase().includes(searchLower) && !r.phone.includes(searchTerm)) return false;
+            }
+            return true;
+        });
+    }, [residents, searchTerm, filters]);
+
+    const handleExportPDF = () => {
+        const params = new URLSearchParams();
+        if (filters.status) params.append('status', filters.status);
+        if (filters.name) params.append('name', filters.name);
+        
+        window.open(`/api/condominiums/${condoId}/residents/export?${params.toString()}`, '_blank');
     };
 
     const handleOpenModal = (r?: any) => {
@@ -161,26 +207,49 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
         }
     };
 
-    const filtered = residents.filter(r => 
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        r.phone.includes(searchTerm)
-    );
+    const statusCounts = useMemo(() => {
+        return {
+            all: residents.length,
+            ACTIVO: residents.filter(r => r.status === 'ACTIVO').length,
+            INACTIVO: residents.filter(r => r.status === 'INACTIVO').length,
+            INSOLVENTE: residents.filter(r => r.status === 'INSOLVENTE').length
+        };
+    }, [residents]);
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Buscar residente por nombre o teléfono..." 
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border rounded-md focus:border-indigo-500 outline-none transition"
-                    />
+                <div className="flex-1 flex gap-4 items-center">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <input 
+                            type="text" 
+                            placeholder="Buscar residente por nombre o teléfono..." 
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:border-indigo-500 outline-none transition"
+                        />
+                    </div>
+                    
+                    <button 
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border transition-colors ${hasActiveFilters ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <Filter className="h-4 w-4" />
+                        Filtros
+                        {hasActiveFilters && <span className="bg-indigo-600 text-white text-xs rounded-full px-1.5">✓</span>}
+                    </button>
                 </div>
                 
                 <div className="flex gap-3 w-full md:w-auto">
+                    <button 
+                        onClick={handleExportPDF}
+                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        <DownloadIcon className="h-4 w-4" />
+                        Exportar PDF
+                    </button>
+
                     <a 
                         href={`/api/condominiums/${condoId}/residents/template`}
                         target="_blank"
@@ -188,7 +257,7 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                     >
                         <Download className="h-4 w-4" /> Plantilla
                     </a>
-                    {/* Botón de Importar envuelve un label e input file */}
+                    
                     <div className="relative overflow-hidden w-full md:w-auto">
                         <input 
                             type="file" 
@@ -211,6 +280,70 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                         <Plus className="h-4 w-4" /> 
                         Nuevo Residente
                     </button>
+                </div>
+            </div>
+
+            {/* Filters Panel */}
+            {showFilters && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-semibold text-gray-700">Filtros de Residentes</h3>
+                        {hasActiveFilters && (
+                            <button 
+                                onClick={clearFilters}
+                                className="text-sm text-red-600 hover:text-red-800 flex items-center gap-1"
+                            >
+                                <XCircle className="h-4 w-4" />
+                                Limpiar filtros
+                            </button>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+                            <select 
+                                value={filters.status}
+                                onChange={e => setFilters({...filters, status: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            >
+                                <option value="">Todos ({statusCounts.all})</option>
+                                <option value="ACTIVO">Activos ({statusCounts.ACTIVO})</option>
+                                <option value="INACTIVO">Inactivos ({statusCounts.INACTIVO})</option>
+                                <option value="INSOLVENTE">Insolventes ({statusCounts.INSOLVENTE})</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Buscar por Nombre</label>
+                            <input 
+                                type="text"
+                                placeholder="Nombre del residente"
+                                value={filters.name}
+                                onChange={e => setFilters({...filters, name: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Status Summary */}
+            <div className="grid grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-lg border shadow-sm">
+                    <div className="text-2xl font-bold text-gray-800">{statusCounts.all}</div>
+                    <div className="text-sm text-gray-500">Total Residentes</div>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+                    <div className="text-2xl font-bold text-emerald-700">{statusCounts.ACTIVO}</div>
+                    <div className="text-sm text-emerald-600">Activos</div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                    <div className="text-2xl font-bold text-gray-600">{statusCounts.INACTIVO}</div>
+                    <div className="text-sm text-gray-500">Inactivos</div>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                    <div className="text-2xl font-bold text-red-700">{statusCounts.INSOLVENTE}</div>
+                    <div className="text-sm text-red-600">Insolventes</div>
                 </div>
             </div>
 
@@ -292,6 +425,7 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Nombre</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Teléfono</th>
+                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Estado</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Contacto CRM</th>
                                 {configuredColumns.map(col => (
                                     <th key={col} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
@@ -312,6 +446,10 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                                     parsedJson = JSON.parse(r.additionalData || '{}');
                                 } catch(e){}
 
+                                const statusColor = r.status === 'ACTIVO' ? 'bg-emerald-100 text-emerald-800' : 
+                                                   r.status === 'INSOLVENTE' ? 'bg-red-100 text-red-800' : 
+                                                   'bg-gray-100 text-gray-800';
+
                                 return (
                                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -320,6 +458,11 @@ export default function ResidentsTab({ condoId }: { condoId: number }) {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                             {r.phone}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColor}`}>
+                                                {r.status === 'ACTIVO' ? 'Activo' : r.status === 'INSOLVENTE' ? 'Insolvente' : 'Inactivo'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             {r.contactId ? (

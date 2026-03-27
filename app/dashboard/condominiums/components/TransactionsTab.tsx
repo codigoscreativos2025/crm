@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, CheckCircle, Clock, FileText, Upload, Trash2, Edit, ChevronDown, Calendar, Pin, Save, X, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, CheckCircle, Clock, FileText, Upload, Trash2, Edit, ChevronDown, Calendar, Pin, Save, X, ExternalLink, Filter, Download, XCircle } from 'lucide-react';
 
 interface TransactionItem {
     id: number;
@@ -20,6 +20,17 @@ interface TransactionItem {
     residentId?: number;
 }
 
+interface FilterState {
+    residentId: string;
+    category: string;
+    source: string;
+    status: string;
+    dateFrom: string;
+    dateTo: string;
+    minAmount: string;
+    maxAmount: string;
+}
+
 export default function TransactionsTab({ condoId, type }: { condoId: number, type: 'INCOME' | 'EXPENSE' }) {
     const [transactions, setTransactions] = useState<TransactionItem[]>([]);
     const [residents, setResidents] = useState<any[]>([]);
@@ -31,10 +42,23 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
 
     const [uploadingReceipt, setUploadingReceipt] = useState<number | null>(null);
 
-    // Month filter
+    // Month filter (main filter)
     const [filterMonth, setFilterMonth] = useState(() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
+
+    // Advanced filters
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState<FilterState>({
+        residentId: '',
+        category: '',
+        source: '',
+        status: '',
+        dateFrom: '',
+        dateTo: '',
+        minAmount: '',
+        maxAmount: ''
     });
 
     // Inline editing
@@ -49,7 +73,6 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Parse filterMonth to get date range
             const [year, month] = filterMonth.split('-').map(Number);
             const startDate = new Date(year, month - 1, 1).toISOString();
             const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
@@ -118,6 +141,73 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
     const getMonthName = (month: number) => {
         const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         return months[month - 1] || '';
+    };
+
+    // Apply filters
+    const filteredTransactions = useMemo(() => {
+        return transactions.filter(t => {
+            if (filters.residentId && t.residentId !== parseInt(filters.residentId)) return false;
+            if (filters.category && t.category !== filters.category) return false;
+            if (filters.source && t.source !== filters.source) return false;
+            if (filters.status && t.status !== filters.status) return false;
+            
+            if (filters.dateFrom) {
+                const itemDate = new Date(t.date);
+                const fromDate = new Date(filters.dateFrom);
+                if (itemDate < fromDate) return false;
+            }
+            
+            if (filters.dateTo) {
+                const itemDate = new Date(t.date);
+                const toDate = new Date(filters.dateTo);
+                toDate.setHours(23, 59, 59);
+                if (itemDate > toDate) return false;
+            }
+            
+            if (filters.minAmount && t.amount < parseFloat(filters.minAmount)) return false;
+            if (filters.maxAmount && t.amount > parseFloat(filters.maxAmount)) return false;
+            
+            return true;
+        });
+    }, [transactions, filters]);
+
+    const hasActiveFilters = useMemo(() => {
+        return Object.values(filters).some(v => v !== '');
+    }, [filters]);
+
+    const clearFilters = () => {
+        setFilters({
+            residentId: '',
+            category: '',
+            source: '',
+            status: '',
+            dateFrom: '',
+            dateTo: '',
+            minAmount: '',
+            maxAmount: ''
+        });
+    };
+
+    const handleExportPDF = () => {
+        const params = new URLSearchParams();
+        params.append('type', type);
+        
+        const [year, month] = filterMonth.split('-').map(Number);
+        const startDate = new Date(year, month - 1, 1).toISOString();
+        const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+        params.append('startDate', startDate);
+        params.append('endDate', endDate);
+        
+        if (filters.residentId) params.append('residentId', filters.residentId);
+        if (filters.category) params.append('category', filters.category);
+        if (filters.source) params.append('source', filters.source);
+        if (filters.status) params.append('status', filters.status);
+        if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+        if (filters.dateTo) params.append('dateTo', filters.dateTo);
+        if (filters.minAmount) params.append('minAmount', filters.minAmount);
+        if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
+        
+        window.open(`/api/condominiums/${condoId}/transactions/export?${params.toString()}`, '_blank');
     };
 
     const handleCreate = async (e: React.FormEvent) => {
@@ -229,13 +319,16 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
     const textColor = type === 'INCOME' ? 'text-emerald-700' : 'text-red-700';
     const btnColor = type === 'INCOME' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700';
 
-    const pendingCount = transactions.filter(t => t.status === 'PENDING').length;
-    const total = transactions.reduce((s: number, t: any) => s + t.amount, 0);
+    const pendingCount = filteredTransactions.filter(t => t.status === 'PENDING').length;
+    const total = filteredTransactions.reduce((s: number, t: any) => s + t.amount, 0);
 
-    // Default categories if none configured
     const defaultIncome = ['Cuota Mensual', 'Cuota Especial', 'Multa', 'Reserva', 'Otro Ingreso'];
     const defaultExpense = ['Servicios', 'Mantenimiento', 'Jardineria', 'Administracion', 'Seguridad', 'Gastos Bancarios', 'Otro Gasto'];
     const catOptions = categories.length > 0 ? categories : (type === 'INCOME' ? defaultIncome : defaultExpense);
+
+    const allCategories = type === 'INCOME' 
+        ? ['Pago de Residente', ...catOptions.filter(c => c !== 'Pago de Residente')]
+        : catOptions;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -245,11 +338,10 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                         {type === 'INCOME' ? 'Ingresos y Pagos' : 'Egresos y Gastos'}
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">
-                        {pendingCount} por conciliar de {transactions.length} registros. Total: <span className="font-bold">{formatCurrency(total)}</span>
+                        {pendingCount} por conciliar de {filteredTransactions.length} registros. Total: <span className="font-bold">{formatCurrency(total)}</span>
                     </p>
                 </div>
-                <div className="flex gap-3 items-center">
-                    {/* Month Picker */}
+                <div className="flex gap-3 items-center flex-wrap">
                     <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         <input 
@@ -259,6 +351,24 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                             className="text-sm outline-none bg-transparent font-medium text-gray-700"
                         />
                     </div>
+                    
+                    <button 
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border transition-colors ${hasActiveFilters ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <Filter className="h-4 w-4" />
+                        Filtros
+                        {hasActiveFilters && <span className="bg-indigo-600 text-white text-xs rounded-full px-1.5">✓</span>}
+                    </button>
+
+                    <button 
+                        onClick={handleExportPDF}
+                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        <Download className="h-4 w-4" />
+                        Exportar PDF
+                    </button>
+
                     <button 
                         onClick={() => setShowModal(true)}
                         className={`flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md shadow-sm transition-colors ${btnColor}`}
@@ -268,6 +378,127 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                     </button>
                 </div>
             </div>
+
+            {/* Advanced Filters Panel */}
+            {showFilters && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-semibold text-gray-700">Filtros Avanzados</h3>
+                        {hasActiveFilters && (
+                            <button 
+                                onClick={clearFilters}
+                                className="text-sm text-red-600 hover:text-red-800 flex items-center gap-1"
+                            >
+                                <XCircle className="h-4 w-4" />
+                                Limpiar filtros
+                            </button>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        {type === 'INCOME' && (
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Residente</label>
+                                <select 
+                                    value={filters.residentId}
+                                    onChange={e => setFilters({...filters, residentId: e.target.value})}
+                                    className="w-full border rounded-md text-sm p-2"
+                                >
+                                    <option value="">Todos</option>
+                                    {residents.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
+                            <select 
+                                value={filters.category}
+                                onChange={e => setFilters({...filters, category: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            >
+                                <option value="">Todas</option>
+                                {allCategories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {type === 'INCOME' && (
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Origen</label>
+                                <select 
+                                    value={filters.source}
+                                    onChange={e => setFilters({...filters, source: e.target.value})}
+                                    className="w-full border rounded-md text-sm p-2"
+                                >
+                                    <option value="">Todos</option>
+                                    <option value="api">API</option>
+                                    <option value="web">Web</option>
+                                </select>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+                            <select 
+                                value={filters.status}
+                                onChange={e => setFilters({...filters, status: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            >
+                                <option value="">Todos</option>
+                                <option value="PENDING">Por Conciliar</option>
+                                <option value="RECONCILED">Conciliado</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Fecha Desde</label>
+                            <input 
+                                type="date"
+                                value={filters.dateFrom}
+                                onChange={e => setFilters({...filters, dateFrom: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Fecha Hasta</label>
+                            <input 
+                                type="date"
+                                value={filters.dateTo}
+                                onChange={e => setFilters({...filters, dateTo: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Monto Mín.</label>
+                            <input 
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={filters.minAmount}
+                                onChange={e => setFilters({...filters, minAmount: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Monto Máx.</label>
+                            <input 
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={filters.maxAmount}
+                                onChange={e => setFilters({...filters, maxAmount: e.target.value})}
+                                className="w-full border rounded-md text-sm p-2"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal de Creación */}
             {showModal && (
@@ -321,7 +552,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                                <input required type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full border p-2 rounded outline-none focus:border-indigo-500"/>
+                                <input required type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full border p-2 rounded outline-none focus:border-indigo-500"/>
                             </div>
 
                             <div>
@@ -347,7 +578,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Detalle</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Categoría</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total</th>
-                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Soporte/Boucher</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Soporte</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Origen</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Estado</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase"></th>
@@ -356,9 +587,9 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                     <tbody className="divide-y divide-gray-200">
                         {loading ? (
                             <tr><td colSpan={8} className="text-center p-8 text-gray-500"><div className="animate-spin inline-block h-6 w-6 border-b-2 border-indigo-600 rounded-full"></div></td></tr>
-                        ) : transactions.length === 0 ? (
+                        ) : filteredTransactions.length === 0 ? (
                             <tr><td colSpan={8} className="text-center p-10 text-gray-500">No hay registros para este mes.</td></tr>
-                        ) : transactions.map((t) => (
+                        ) : filteredTransactions.map((t) => (
                             <tr key={`${t.type}-${t.id}`} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 text-sm text-gray-900">{formatDate(t.date)}</td>
                                 <td className="px-6 py-4">
