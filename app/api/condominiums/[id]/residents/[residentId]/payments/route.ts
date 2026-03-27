@@ -30,7 +30,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
         }
 
         const body = await req.json();
-        const { amount, date, notes, month, year } = body;
+        const { amount, date, paymentDate, notes, month, year } = body;
+        const paymentDateValue = date || paymentDate;
 
         if (!amount || amount <= 0) {
             return NextResponse.json({ error: "Monto requerido y válido" }, { status: 400 });
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
                 residentId,
                 condominiumId: condoId,
                 amount: parseFloat(amount),
-                date: date ? new Date(date) : new Date(),
+                date: paymentDateValue ? new Date(paymentDateValue) : new Date(),
                 notes: notes || null,
                 month: month || null,
                 year: year || null,

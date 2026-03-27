@@ -254,7 +254,7 @@ const endpoints = [
       { name: 'status', example: '?status=PENDING', description: 'Filtrar por estado: PENDING o RECONCILED' }
     ],
     curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY"`,
-    responseJSON: `[{\n  "id": 1,\n  "amount": 1500.00,\n  "status": "RECONCILED",\n  "paymentDate": "2026-03-15",\n  "month": 3,\n  "year": 2026\n}]`
+    responseJSON: `[{\n  "id": 1,\n  "amount": 1500.00,\n  "status": "RECONCILED",\n  "date": "2026-03-15T00:00:00.000Z",\n  "month": 3,\n  "year": 2026\n}]`
   },
   {
     method: 'POST',
@@ -263,8 +263,8 @@ const endpoints = [
     description: 'Registra un nuevo pago para un residente. Puede ser parcial o completo.',
     category: 'Pagos',
     auth: 'session | userApiKey',
-    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": 1500, "paymentDate": "2026-03-15", "month": 3, "year": 2026}'`,
-    responseJSON: `{\n  "id": 1,\n  "amount": 1500.00,\n  "status": "PENDING"\n}`
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": 1500, "date": "2026-03-15", "month": 3, "year": 2026}'`,
+    responseJSON: `{\n  "id": 1,\n  "amount": 1500.00,\n  "date": "2026-03-15T00:00:00.000Z",\n  "status": "PENDING"\n}`
   },
   {
     method: 'POST',
