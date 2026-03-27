@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             }
         });
 
-        const { createCondoLog } = await import("../../../../logHelper");
+        const { createCondoLog } = await import("@/app/api/condominiums/logHelper");
         await createCondoLog(condoId, `Nuevo pago registrado para ${resident.name}: $${amount}`, "CRM");
 
         return NextResponse.json(payment, { status: 201 });
