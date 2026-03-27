@@ -1,10 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, CheckCircle, Clock, FileText, Upload, Trash2, Edit, ChevronDown, Calendar, Pin, Save, X } from 'lucide-react';
+import { Plus, CheckCircle, Clock, FileText, Upload, Trash2, Edit, ChevronDown, Calendar, Pin, Save, X, ExternalLink } from 'lucide-react';
+
+interface TransactionItem {
+    id: number;
+    type: 'transaction' | 'payment';
+    date: string;
+    description: string | null;
+    category?: string;
+    amount: number;
+    status: string;
+    receiptUrl: string | null;
+    resident?: { id: number; name: string; phone: string } | null;
+    source?: string;
+    month?: number | null;
+    year?: number | null;
+    isFixed?: boolean;
+    residentId?: number;
+}
 
 export default function TransactionsTab({ condoId, type }: { condoId: number, type: 'INCOME' | 'EXPENSE' }) {
-    const [transactions, setTransactions] = useState<any[]>([]);
+    const [transactions, setTransactions] = useState<TransactionItem[]>([]);
     const [residents, setResidents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState<string[]>([]);
@@ -22,6 +39,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
 
     // Inline editing
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingType, setEditingType] = useState<'transaction' | 'payment' | null>(null);
     const [editAmount, setEditAmount] = useState('');
 
     useEffect(() => {
@@ -36,28 +54,70 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
             const startDate = new Date(year, month - 1, 1).toISOString();
             const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-            const [tRes, rRes, settingsRes] = await Promise.all([
+            const fetchPromises: Promise<any>[] = [
                 fetch(`/api/condominiums/${condoId}/transactions?type=${type}&startDate=${startDate}&endDate=${endDate}`),
-                type === 'INCOME' ? fetch(`/api/condominiums/${condoId}/residents`) : Promise.resolve(null),
                 fetch(`/api/condominiums/${condoId}`)
-            ]);
+            ];
 
-            if (tRes.ok) setTransactions(await tRes.json());
-            if (rRes && rRes.ok) setResidents(await rRes.json());
-            if (settingsRes.ok) {
-                const data = await settingsRes.json();
-                const catKey = type === 'INCOME' ? 'incomeCategories' : 'expenseCategories';
-                if (data[catKey]) {
-                    try { 
-                        const parsed = JSON.parse(data[catKey]);
-                        if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
-                    } catch(e) {}
-                }
+            if (type === 'INCOME') {
+                fetchPromises.push(fetch(`/api/condominiums/${condoId}/payments?startDate=${startDate}&endDate=${endDate}`));
+            }
+
+            const [tRes, settingsRes, pRes] = await Promise.all(fetchPromises);
+
+            const tData = tRes.ok ? await tRes.json() : [];
+            const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+            
+            let combinedData: TransactionItem[] = tData.map((t: any) => ({
+                ...t,
+                type: 'transaction' as const,
+                source: t.source || 'web'
+            }));
+
+            if (type === 'INCOME' && pRes && pRes.ok) {
+                const pData = await pRes.json();
+                const paymentItems: TransactionItem[] = pData.map((p: any) => ({
+                    id: p.id,
+                    type: 'payment',
+                    date: p.date,
+                    description: p.notes || (p.month && p.year ? `Pago ${getMonthName(p.month)} ${p.year}` : 'Pago'),
+                    category: 'Pago de Residente',
+                    amount: p.amount,
+                    status: p.status,
+                    receiptUrl: p.receiptUrl,
+                    resident: p.resident,
+                    source: p.source || 'api',
+                    month: p.month,
+                    year: p.year,
+                    residentId: p.residentId
+                }));
+                combinedData = [...combinedData, ...paymentItems];
+            }
+
+            combinedData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setTransactions(combinedData);
+
+            if (type === 'INCOME') {
+                const rRes = await fetch(`/api/condominiums/${condoId}/residents`);
+                if (rRes.ok) setResidents(await rRes.json());
+            }
+
+            const catKey = type === 'INCOME' ? 'incomeCategories' : 'expenseCategories';
+            if (settingsData[catKey]) {
+                try { 
+                    const parsed = JSON.parse(settingsData[catKey]);
+                    if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+                } catch(e) {}
             }
         } catch (e) {
             console.error(e);
         }
         setLoading(false);
+    };
+
+    const getMonthName = (month: number) => {
+        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        return months[month - 1] || '';
     };
 
     const handleCreate = async (e: React.FormEvent) => {
@@ -87,22 +147,32 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
         } catch (e) {}
     };
 
-    const handleStatusToggle = async (tId: number, currentStatus: string) => {
-        const newStatus = currentStatus === 'PENDING' ? 'RECONCILED' : 'PENDING';
+    const handleStatusToggle = async (tId: number, currentStatus: string, itemType: 'transaction' | 'payment', residentId?: number) => {
         try {
-            await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
-            });
+            if (itemType === 'transaction') {
+                const newStatus = currentStatus === 'PENDING' ? 'RECONCILED' : 'PENDING';
+                await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+            } else if (itemType === 'payment' && residentId) {
+                await fetch(`/api/condominiums/${condoId}/residents/${residentId}/payments/${tId}/reconcile`, {
+                    method: 'POST'
+                });
+            }
             fetchData();
         } catch (e) {}
     };
 
-    const handleDelete = async (tId: number) => {
+    const handleDelete = async (tId: number, itemType: 'transaction' | 'payment', residentId?: number) => {
         if(!confirm('¿Eliminar transacción de forma permanente?')) return;
         try {
-            await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, { method: 'DELETE' });
+            if (itemType === 'transaction') {
+                await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, { method: 'DELETE' });
+            } else if (itemType === 'payment' && residentId) {
+                await fetch(`/api/condominiums/${condoId}/residents/${residentId}/payments/${tId}`, { method: 'DELETE' });
+            }
             fetchData();
         } catch (e) {}
     };
@@ -131,19 +201,23 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
         }
     };
 
-    const handleStartEdit = (t: any) => {
+    const handleStartEdit = (t: TransactionItem) => {
         setEditingId(t.id);
+        setEditingType(t.type);
         setEditAmount(t.amount.toString());
     };
 
-    const handleSaveAmount = async (tId: number) => {
+    const handleSaveAmount = async (tId: number, itemType: 'transaction' | 'payment') => {
         try {
-            await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: parseFloat(editAmount) })
-            });
+            if (itemType === 'transaction') {
+                await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: parseFloat(editAmount) })
+                });
+            }
             setEditingId(null);
+            setEditingType(null);
             fetchData();
         } catch(e) { alert('Error guardando.'); }
     };
@@ -274,17 +348,18 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Categoría</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Soporte/Boucher</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Origen</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Estado</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                         {loading ? (
-                            <tr><td colSpan={7} className="text-center p-8 text-gray-500"><div className="animate-spin inline-block h-6 w-6 border-b-2 border-indigo-600 rounded-full"></div></td></tr>
+                            <tr><td colSpan={8} className="text-center p-8 text-gray-500"><div className="animate-spin inline-block h-6 w-6 border-b-2 border-indigo-600 rounded-full"></div></td></tr>
                         ) : transactions.length === 0 ? (
-                            <tr><td colSpan={7} className="text-center p-10 text-gray-500">No hay registros para este mes.</td></tr>
-                        ) : transactions.map(t => (
-                            <tr key={t.id} className="hover:bg-gray-50">
+                            <tr><td colSpan={8} className="text-center p-10 text-gray-500">No hay registros para este mes.</td></tr>
+                        ) : transactions.map((t) => (
+                            <tr key={`${t.type}-${t.id}`} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 text-sm text-gray-900">{formatDate(t.date)}</td>
                                 <td className="px-6 py-4">
                                     <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
@@ -295,7 +370,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500">{t.category}</td>
                                 <td className={`px-6 py-4 text-sm font-bold text-right ${textColor}`}>
-                                    {editingId === t.id ? (
+                                    {editingId === t.id && editingType === t.type ? (
                                         <div className="flex items-center gap-1 justify-end">
                                             <input 
                                                 type="number" 
@@ -305,8 +380,8 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                                 className="w-24 border rounded p-1 text-sm text-right outline-none focus:border-indigo-500"
                                                 autoFocus
                                             />
-                                            <button onClick={() => handleSaveAmount(t.id)} className="text-green-600 hover:text-green-800 p-1"><Save className="h-4 w-4" /></button>
-                                            <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600 p-1"><X className="h-4 w-4" /></button>
+                                            <button onClick={() => handleSaveAmount(t.id, t.type)} className="text-green-600 hover:text-green-800 p-1"><Save className="h-4 w-4" /></button>
+                                            <button onClick={() => { setEditingId(null); setEditingType(null); }} className="text-gray-400 hover:text-gray-600 p-1"><X className="h-4 w-4" /></button>
                                         </div>
                                     ) : (
                                         <span 
@@ -339,8 +414,14 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                     )}
                                 </td>
                                 <td className="px-6 py-4 text-center">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${t.source === 'api' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                        {t.source === 'api' ? <ExternalLink className="h-3 w-3" /> : null}
+                                        {t.source === 'api' ? 'API' : 'Web'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
                                     <button 
-                                        onClick={() => handleStatusToggle(t.id, t.status)}
+                                        onClick={() => handleStatusToggle(t.id, t.status, t.type, t.residentId)}
                                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors ${t.status === 'RECONCILED' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}
                                     >
                                         {t.status === 'RECONCILED' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
@@ -348,7 +429,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                     </button>
                                 </td>
                                 <td className="px-6 py-4 text-right text-sm">
-                                    <button onClick={() => handleDelete(t.id)} className="text-gray-400 hover:text-red-600 transition-colors p-1">
+                                    <button onClick={() => handleDelete(t.id, t.type, t.residentId)} className="text-gray-400 hover:text-red-600 transition-colors p-1">
                                         <Trash2 className="h-4 w-4" />
                                     </button>
                                 </td>

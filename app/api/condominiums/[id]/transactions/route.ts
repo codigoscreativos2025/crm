@@ -68,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (isNaN(condoId)) return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
 
         const body = await req.json();
-        const { type, category, amount, description, date, status, residentId, receiptUrl, receiptType, isFixed } = body;
+        const { type, category, amount, description, date, status, residentId, receiptUrl, receiptType, isFixed, source } = body;
 
         if (!type || !category || amount === undefined) {
             return NextResponse.json({ error: "Faltan datos obligatorios (type, category, amount)" }, { status: 400 });
@@ -103,6 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 status: status || 'PENDING',
                 date: date ? new Date(date) : new Date(),
                 isFixed: type === 'EXPENSE' ? (isFixed === true) : false,
+                source: source || 'web',
                 residentId: type === 'INCOME' && residentId ? parseInt(residentId) : null,
                 receiptUrl: receiptUrl || null,
                 receiptType: receiptType || null

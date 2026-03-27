@@ -44,9 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
                 amount: parseFloat(amount),
                 date: paymentDateValue ? new Date(paymentDateValue) : new Date(),
                 notes: notes || null,
-                month: month || null,
-                year: year || null,
-                status: 'PENDING'
+                month: month ? parseInt(month) : null,
+                year: year ? parseInt(year) : null,
+                status: 'PENDING',
+                source: 'api'
             }
         });
 

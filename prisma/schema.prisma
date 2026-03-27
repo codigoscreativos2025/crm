@@ -216,6 +216,7 @@ model Transaction {
   status         String      @default("PENDING") // 'PENDING' (Por conciliar), 'RECONCILED' (Conciliado)
   date           DateTime    @default(now())
   isFixed        Boolean     @default(false) // Si es egreso fijo, se replica al mes siguiente
+  source         String      @default("web")  // "api" o "web"
   
   // Soportes (Boucher / Recibo)
   receiptUrl     String?
@@ -225,7 +226,7 @@ model Transaction {
   condominiumId  Int
   condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   
-  // Sólo para ingresos (pagado por un residente)
+  // Sóo para ingresos (pagado por un residente)
   residentId     Int?
   resident       Resident?   @relation(fields: [residentId], references: [id], onDelete: SetNull)
 
@@ -265,6 +266,7 @@ model Payment {
   notes          String?
   month          Int?        // Mes que cancela (null = abono general)
   year           Int?        // Año que cancela
+  source         String      @default("api")     // "api" o "web"
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 }

@@ -263,8 +263,17 @@ const endpoints = [
     description: 'Registra un nuevo pago para un residente. Puede ser parcial o completo.',
     category: 'Pagos',
     auth: 'session | userApiKey',
-    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": 1500, "date": "2026-03-15", "month": 3, "year": 2026}'`,
-    responseJSON: `{\n  "id": 1,\n  "amount": 1500.00,\n  "date": "2026-03-15T00:00:00.000Z",\n  "status": "PENDING"\n}`
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 1500, "date": "2026-03-15", "month": 3, "year": 2026}'`,
+    note: 'IMPORTANTE: Los valores numéricos deben ir SIN comillas (no como strings)',
+    responseJSON: `{
+  "id": 1,
+  "amount": 1500.00,
+  "date": "2026-03-15T00:00:00.000Z",
+  "status": "PENDING",
+  "source": "api"
+}`
   },
   {
     method: 'POST',

@@ -98,7 +98,48 @@ Este flujo recibe la orden del CRM y la manda a Meta.
     *   `Access Token` (Permanente del usuario del sistema).
 5.  Configura el Webhook en Meta apuntando a tu n8n (`Flujo 1`).
 
-## 5. Resumen de Conexión
+## 5. Registrar Pagos de Residentes
+
+Usa este endpoint para registrar pagos desde n8n (integraciones externas, automatizaciones, etc.).
+
+### Configuración del Nodo HTTP Request en n8n:
+
+1.  **Method**: `POST`
+2.  **URL**: `https://crm.tudominio.com/api/condominiums/{ID}/residents/{RESIDENTE_ID}/payments`
+3.  **Query Parameters**:
+    *   `userApiKey`: Tu API Key del usuario
+4.  **Body Content Type**: `JSON`
+5.  **JSON Body**:
+    ```json
+    {
+      "amount": 1500,
+      "date": "2026-03-15",
+      "month": 3,
+      "year": 2026
+    }
+    ```
+
+**Nota importante**: Todos los valores numéricos deben ir como números (sin comillas), no como strings.
+
+### Parámetros:
+| Campo | Tipo | Obligatorio | Descripción |
+|-------|------|--------------|-------------|
+| amount | number | Sí | Monto del pago |
+| date | string | No | Fecha del pago (formato YYYY-MM-DD). Por defecto: fecha actual |
+| month | number | No | Mes que cancela (1-12). Opcional |
+| year | number | No | Año que cancela. Opcional |
+| notes | string | No | Notas adicionales |
+
+### Ejemplo de curl:
+```bash
+curl -X POST "https://crm.tudominio.com/api/condominiums/1/residents/5/payments?userApiKey=TU_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 1500, "date": "2026-03-15", "month": 3, "year": 2026}'
+```
+
+---
+
+## 6. Resumen de Conexión
 
 *   **Meta** -> (Webhook) -> **n8n** -> (API Key) -> **CRM**
 *   **CRM** -> (Webhook) -> **n8n** -> (Bearer Token) -> **Meta**
