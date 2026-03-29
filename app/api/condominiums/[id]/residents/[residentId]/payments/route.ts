@@ -2,6 +2,12 @@ import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateCondoRequest } from "@/lib/condoAuth";
 
+const parseLocalDate = (dateStr: string | undefined) => {
+    if (!dateStr) return new Date();
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+};
+
 export async function POST(req: NextRequest, { params }: { params: { id: string, residentId: string } }) {
     const auth = await authenticateCondoRequest(req);
     if (auth.error) {
@@ -42,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
                 residentId,
                 condominiumId: condoId,
                 amount: parseFloat(amount),
-                date: paymentDateValue ? new Date(paymentDateValue) : new Date(),
+                date: parseLocalDate(paymentDateValue),
                 notes: notes || null,
                 month: month ? parseInt(month) : null,
                 year: year ? parseInt(year) : null,

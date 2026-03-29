@@ -1,12 +1,11 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const session = await auth();
-    // @ts-ignore
-    if (session?.user?.role !== 'ADMIN') {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     const condoId = parseInt(params.id);
@@ -15,6 +14,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     try {
+        const condo = await prisma.condominium.findUnique({ where: { id: condoId } });
+        if (!condo || condo.userId !== auth.ownerId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+
         const pendingPayments = await prisma.payment.findMany({
             where: {
                 condominiumId: condoId,
