@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string, residentId: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -16,23 +16,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string, 
             return NextResponse.json({ error: "IDs Inválidos" }, { status: 400 });
         }
 
-        const body = await req.json();
-        const { name, phone, additionalData } = body;
-
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
         const condo = await prisma.condominium.findUnique({
             where: { id: condoId }
         });
 
-        if (!condo || condo.userId !== ownerId) {
+        if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
+
+        const body = await req.json();
+        const { name, phone, additionalData } = body;
 
         const existingResident = await prisma.resident.findUnique({
             where: { id: residentId }
@@ -63,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string, 
             const crmContact = await prisma.contact.findUnique({
                 where: {
                     userId_phone: {
-                        userId: ownerId,
+                        userId: auth.ownerId,
                         phone: phone
                     }
                 }
@@ -89,9 +82,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string, 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string, residentId: string } }) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     try {
@@ -102,18 +95,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
             return NextResponse.json({ error: "IDs Inválidos" }, { status: 400 });
         }
 
-        const userId = parseInt(session.user.id);
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { parentId: true }
-        });
-        const ownerId = user?.parentId || userId;
-
         const condo = await prisma.condominium.findUnique({
             where: { id: condoId }
         });
 
-        if (!condo || condo.userId !== ownerId) {
+        if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
