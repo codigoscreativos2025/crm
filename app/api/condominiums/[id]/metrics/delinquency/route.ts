@@ -35,8 +35,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             ]);
         }
 
-        // Residents who made at least one income transaction this month
-        const payingResidentsCountQuery = await prisma.transaction.groupBy({
+        // Residents who made at least one income transaction this month (from Transaction table)
+        const payingResidentsFromTransactions = await prisma.transaction.groupBy({
             by: ['residentId'],
             where: {
                 condominiumId: condoId,
@@ -46,7 +46,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             }
         });
 
-        const alDiaCount = payingResidentsCountQuery.length;
+        // Residents who made at least one payment this month (from Payment table)
+        const payingResidentsFromPayments = await prisma.payment.groupBy({
+            by: ['residentId'],
+            where: {
+                condominiumId: condoId,
+                date: { gte: firstDayOfMonth }
+            }
+        });
+
+        // Combine unique resident IDs from both tables
+        const allPayingResidents = new Set([
+            ...payingResidentsFromTransactions.map(r => r.residentId),
+            ...payingResidentsFromPayments.map(r => r.residentId)
+        ]);
+
+        const alDiaCount = allPayingResidents.size;
         const morososCount = totalResidents - alDiaCount;
 
         const data = [

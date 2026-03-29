@@ -87,6 +87,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
+        // Get payments from Payment table
         const payments = await prisma.payment.findMany({
             where: {
                 residentId,
@@ -95,7 +96,40 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             orderBy: { date: 'desc' }
         });
 
-        return NextResponse.json(payments);
+        // Get income transactions from Transaction table for this resident
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                residentId,
+                condominiumId: condoId,
+                type: 'INCOME'
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // Transform transactions to match payment format
+        const transformedTransactions = transactions.map(t => ({
+            id: t.id,
+            amount: t.amount,
+            date: t.date,
+            status: t.status,
+            receiptUrl: t.receiptUrl,
+            receiptType: t.receiptType,
+            notes: t.description,
+            month: null,
+            year: null,
+            source: t.source,
+            residentId: t.residentId,
+            condominiumId: t.condominiumId,
+            isTransaction: true
+        }));
+
+        // Combine and sort by date
+        const combined = [
+            ...payments.map(p => ({ ...p, isTransaction: false })),
+            ...transformedTransactions
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return NextResponse.json(combined);
 
     } catch (e) {
         console.error("Error fetching payments:", e);

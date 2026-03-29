@@ -33,20 +33,38 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        const whereClause: any = { condominiumId: condoId };
+        // Build where clauses for both tables
+        const transactionWhere: any = { condominiumId: condoId };
+        const paymentWhere: any = { condominiumId: condoId };
         
-        if (type) whereClause.type = type;
-        if (status) whereClause.status = status;
-        if (residentId) whereClause.residentId = parseInt(residentId);
+        if (type) {
+            transactionWhere.type = type;
+        }
+        if (status) {
+            transactionWhere.status = status;
+            paymentWhere.status = status;
+        }
+        if (residentId) {
+            transactionWhere.residentId = parseInt(residentId);
+            paymentWhere.residentId = parseInt(residentId);
+        }
         
         if (startDate || endDate) {
-            whereClause.date = {};
-            if (startDate) whereClause.date.gte = new Date(startDate);
-            if (endDate) whereClause.date.lte = new Date(endDate);
+            transactionWhere.date = {};
+            paymentWhere.date = {};
+            if (startDate) {
+                transactionWhere.date.gte = new Date(startDate);
+                paymentWhere.date.gte = new Date(startDate);
+            }
+            if (endDate) {
+                transactionWhere.date.lte = new Date(endDate);
+                paymentWhere.date.lte = new Date(endDate);
+            }
         }
 
+        // Get transactions from web
         const transactions = await prisma.transaction.findMany({
-            where: whereClause,
+            where: transactionWhere,
             include: {
                 resident: {
                     select: { id: true, name: true, phone: true }
@@ -55,7 +73,43 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             orderBy: { date: 'desc' }
         });
 
-        return NextResponse.json(transactions);
+        // Get payments from API
+        const payments = await prisma.payment.findMany({
+            where: paymentWhere,
+            include: {
+                resident: {
+                    select: { id: true, name: true, phone: true }
+                }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // Transform payments to match transaction format
+        const transformedPayments = payments.map(p => ({
+            id: p.id,
+            type: 'INCOME' as const,
+            category: 'Pago',
+            amount: p.amount,
+            description: p.notes,
+            date: p.date,
+            status: p.status,
+            receiptUrl: p.receiptUrl,
+            receiptType: p.receiptType,
+            isFixed: false,
+            source: p.source,
+            residentId: p.residentId,
+            condominiumId: p.condominiumId,
+            resident: p.resident,
+            isPayment: true  // Flag to identify from Payment table
+        }));
+
+        // Combine and sort by date
+        const combined = [
+            ...transactions.map(t => ({ ...t, isPayment: false })),
+            ...transformedPayments
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return NextResponse.json(combined);
 
     } catch (error) {
         console.error("Error fetching transactions:", error);
