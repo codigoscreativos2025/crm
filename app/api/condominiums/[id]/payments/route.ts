@@ -25,37 +25,21 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         const status = searchParams.get('status');
         const residentId = searchParams.get('residentId');
 
-        // Build where clauses for both tables
-        const transactionWhere: any = { 
+        const whereClause: any = { 
             condominiumId: condoId,
-            type: 'INCOME'  // Only get INCOME transactions (payments)
+            type: 'INCOME'
         };
-        const paymentWhere: any = { condominiumId: condoId };
         
         if (startDate || endDate) {
-            transactionWhere.date = {};
-            paymentWhere.date = {};
-            if (startDate) {
-                transactionWhere.date.gte = new Date(startDate);
-                paymentWhere.date.gte = new Date(startDate);
-            }
-            if (endDate) {
-                transactionWhere.date.lte = new Date(endDate);
-                paymentWhere.date.lte = new Date(endDate);
-            }
+            whereClause.date = {};
+            if (startDate) whereClause.date.gte = new Date(startDate);
+            if (endDate) whereClause.date.lte = new Date(endDate);
         }
-        if (status) {
-            transactionWhere.status = status;
-            paymentWhere.status = status;
-        }
-        if (residentId) {
-            transactionWhere.residentId = parseInt(residentId);
-            paymentWhere.residentId = parseInt(residentId);
-        }
+        if (status) whereClause.status = status;
+        if (residentId) whereClause.residentId = parseInt(residentId);
 
-        // Get transactions (INCOME only from web)
         const transactions = await prisma.transaction.findMany({
-            where: transactionWhere,
+            where: whereClause,
             include: {
                 resident: {
                     select: { id: true, name: true, phone: true }
@@ -64,43 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             orderBy: { date: 'desc' }
         });
 
-        // Get payments (from API)
-        const payments = await prisma.payment.findMany({
-            where: paymentWhere,
-            include: {
-                resident: {
-                    select: { id: true, name: true, phone: true }
-                }
-            },
-            orderBy: { date: 'desc' }
-        });
-
-        // Transform transactions to match payment format
-        const transformedTransactions = transactions.map(t => ({
-            id: t.id,
-            type: 'INCOME' as const,
-            amount: t.amount,
-            date: t.date,
-            status: t.status,
-            receiptUrl: t.receiptUrl,
-            receiptType: t.receiptType,
-            notes: t.description,
-            month: null,
-            year: null,
-            source: t.source,
-            residentId: t.residentId,
-            condominiumId: t.condominiumId,
-            resident: t.resident,
-            isTransaction: true  // Flag to identify from Transaction table
-        }));
-
-        // Combine and sort by date
-        const combined = [
-            ...payments.map(p => ({ ...p, isTransaction: false })),
-            ...transformedTransactions
-        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        return NextResponse.json(combined);
+        return NextResponse.json(transactions);
 
     } catch (error) {
         console.error("Error fetching payments:", error);

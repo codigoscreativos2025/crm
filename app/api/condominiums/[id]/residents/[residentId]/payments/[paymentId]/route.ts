@@ -9,9 +9,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
 
     const condoId = parseInt(params.id);
-    const paymentId = parseInt(params.paymentId);
+    const transactionId = parseInt(params.paymentId);
 
-    if (isNaN(condoId) || isNaN(paymentId)) {
+    if (isNaN(condoId) || isNaN(transactionId)) {
         return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
     }
 
@@ -21,16 +21,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        const payment = await prisma.payment.findUnique({
-            where: { id: paymentId }
+        const transaction = await prisma.transaction.findUnique({
+            where: { id: transactionId }
         });
 
-        if (!payment || payment.condominiumId !== condoId) {
+        if (!transaction || transaction.condominiumId !== condoId) {
             return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
         }
 
-        await prisma.payment.delete({
-            where: { id: paymentId }
+        await prisma.transaction.delete({
+            where: { id: transactionId }
         });
 
         return NextResponse.json({ success: true });

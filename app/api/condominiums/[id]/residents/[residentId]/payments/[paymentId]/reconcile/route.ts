@@ -11,13 +11,7 @@ async function calculateResidentSolvency(residentId: number) {
         orderBy: [{ year: 'asc' }, { month: 'asc' }]
     });
 
-    // Get reconciled payments from Payment table
-    const payments = await prisma.payment.findMany({
-        where: { residentId, status: 'RECONCILED' },
-        orderBy: [{ date: 'asc' }]
-    });
-
-    // Get reconciled transactions from Transaction table (INCOME only)
+    // Get reconciled transactions (INCOME only)
     const transactions = await prisma.transaction.findMany({
         where: { residentId, type: 'INCOME', status: 'RECONCILED' },
         orderBy: [{ date: 'asc' }]
@@ -25,24 +19,19 @@ async function calculateResidentSolvency(residentId: number) {
 
     let advanceCredit = resident.advanceCredit || 0;
 
-    // Process payments from Payment table
-    for (const payment of payments) {
-        if (payment.month === null || payment.year === null) {
-            advanceCredit += payment.amount;
+    // Process transactions
+    for (const transaction of transactions) {
+        if (transaction.month === null || transaction.year === null) {
+            advanceCredit += transaction.amount;
         } else {
-            const debt = debts.find(d => d.month === payment.month && d.year === payment.year);
+            const debt = debts.find(d => d.month === transaction.month && d.year === transaction.year);
             if (debt) {
-                debt.amountPaid += payment.amount;
+                debt.amountPaid += transaction.amount;
                 if (debt.amountPaid >= debt.amount) {
                     debt.isPaid = true;
                 }
             }
         }
-    }
-
-    // Process transactions from Transaction table (treat as advance credit)
-    for (const transaction of transactions) {
-        advanceCredit += transaction.amount;
     }
 
     for (const debt of debts) {
@@ -84,15 +73,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
 
     const condoId = parseInt(params.id);
     const residentId = parseInt(params.residentId);
-    const paymentId = parseInt(params.paymentId);
+    const transactionId = parseInt(params.paymentId);
 
-    if (isNaN(condoId) || isNaN(residentId) || isNaN(paymentId)) {
+    if (isNaN(condoId) || isNaN(residentId) || isNaN(transactionId)) {
         return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
     }
-
-    // Get type from query param - defaults to 'payment'
-    const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type') || 'payment';
 
     try {
         const condo = await prisma.condominium.findUnique({ where: { id: condoId } });
@@ -100,31 +85,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        let updated;
-
-        if (type === 'transaction') {
-            // Handle Transaction reconciliation
-            const transaction = await prisma.transaction.findUnique({ where: { id: paymentId } });
-            if (!transaction || transaction.residentId !== residentId || transaction.condominiumId !== condoId) {
-                return NextResponse.json({ error: "Transacción no encontrada" }, { status: 404 });
-            }
-
-            updated = await prisma.transaction.update({
-                where: { id: paymentId },
-                data: { status: 'RECONCILED' }
-            });
-        } else {
-            // Handle Payment reconciliation (default)
-            const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
-            if (!payment || payment.residentId !== residentId || payment.condominiumId !== condoId) {
-                return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
-            }
-
-            updated = await prisma.payment.update({
-                where: { id: paymentId },
-                data: { status: 'RECONCILED' }
-            });
+        const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
+        if (!transaction || transaction.residentId !== residentId || transaction.condominiumId !== condoId) {
+            return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
         }
+
+        const updated = await prisma.transaction.update({
+            where: { id: transactionId },
+            data: { status: 'RECONCILED' }
+        });
 
         await calculateResidentSolvency(residentId);
 

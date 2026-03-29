@@ -153,7 +153,6 @@ model Condominium {
   logs          CondominiumLog[]
   invoices      Invoice[]
   residentDebts ResidentDebt[]
-  payments      Payment[]
 }
 
 model CondominiumLog {
@@ -199,7 +198,6 @@ model Resident {
 
   transactions   Transaction[]
   residentDebts  ResidentDebt[]
-  payments      Payment[]
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -221,6 +219,10 @@ model Transaction {
   // Soportes (Boucher / Recibo)
   receiptUrl     String?
   receiptType    String?     // mime type (pdf, jpeg, etc)
+  
+  // Mes y año que cancela (para pagos de meses específicos)
+  month          Int?        // Mes que cancela (null = abono general)
+  year           Int?        // Año que cancela
   
   // Relaciones
   condominiumId  Int
@@ -250,23 +252,4 @@ model ResidentDebt {
   updatedAt      DateTime    @updatedAt
   
   @@unique([residentId, month, year])
-}
-
-model Payment {
-  id             Int         @id @default(autoincrement())
-  residentId     Int
-  resident       Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
-  condominiumId  Int
-  condominium    Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
-  amount         Float
-  date           DateTime    @default(now())
-  status         String      @default("PENDING")  // "PENDING" o "RECONCILED"
-  receiptUrl     String?
-  receiptType    String?
-  notes          String?
-  month          Int?        // Mes que cancela (null = abono general)
-  year           Int?        // Año que cancela
-  source         String      @default("api")     // "api" o "web"
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
 }

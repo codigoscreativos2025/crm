@@ -43,24 +43,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             return NextResponse.json({ error: "Monto requerido y válido" }, { status: 400 });
         }
 
-        const payment = await prisma.payment.create({
+        // Create in Transaction table (unified)
+        const transaction = await prisma.transaction.create({
             data: {
-                residentId,
                 condominiumId: condoId,
+                residentId,
+                type: 'INCOME',
+                category: 'Pago de Residente',
                 amount: parseFloat(amount),
+                description: notes || null,
                 date: parseLocalDate(paymentDateValue),
-                notes: notes || null,
-                month: month ? parseInt(month) : null,
-                year: year ? parseInt(year) : null,
                 status: 'PENDING',
-                source: 'api'
+                source: 'api',
+                month: month ? parseInt(month) : null,
+                year: year ? parseInt(year) : null
             }
         });
 
         const { createCondoLog } = await import("@/app/api/condominiums/logHelper");
         await createCondoLog(condoId, `Nuevo pago registrado para ${resident.name}: $${amount}`, "CRM");
 
-        return NextResponse.json(payment, { status: 201 });
+        return NextResponse.json(transaction, { status: 201 });
 
     } catch (e) {
         console.error("Error creating payment:", e);
@@ -87,49 +90,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        // Get payments from Payment table
-        const payments = await prisma.payment.findMany({
-            where: {
-                residentId,
-                condominiumId: condoId
-            },
-            orderBy: { date: 'desc' }
-        });
-
-        // Get income transactions from Transaction table for this resident
+        // Get income transactions from Transaction table
         const transactions = await prisma.transaction.findMany({
             where: {
                 residentId,
                 condominiumId: condoId,
                 type: 'INCOME'
             },
+            include: {
+                resident: {
+                    select: { id: true, name: true, phone: true }
+                }
+            },
             orderBy: { date: 'desc' }
         });
 
-        // Transform transactions to match payment format
-        const transformedTransactions = transactions.map(t => ({
-            id: t.id,
-            amount: t.amount,
-            date: t.date,
-            status: t.status,
-            receiptUrl: t.receiptUrl,
-            receiptType: t.receiptType,
-            notes: t.description,
-            month: null,
-            year: null,
-            source: t.source,
-            residentId: t.residentId,
-            condominiumId: t.condominiumId,
-            isTransaction: true
-        }));
-
-        // Combine and sort by date
-        const combined = [
-            ...payments.map(p => ({ ...p, isTransaction: false })),
-            ...transformedTransactions
-        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        return NextResponse.json(combined);
+        return NextResponse.json(transactions);
 
     } catch (e) {
         console.error("Error fetching payments:", e);

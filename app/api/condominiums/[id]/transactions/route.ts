@@ -73,43 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             orderBy: { date: 'desc' }
         });
 
-        // Get payments from API
-        const payments = await prisma.payment.findMany({
-            where: paymentWhere,
-            include: {
-                resident: {
-                    select: { id: true, name: true, phone: true }
-                }
-            },
-            orderBy: { date: 'desc' }
-        });
-
-        // Transform payments to match transaction format
-        const transformedPayments = payments.map(p => ({
-            id: p.id,
-            type: 'INCOME' as const,
-            category: 'Pago',
-            amount: p.amount,
-            description: p.notes,
-            date: p.date,
-            status: p.status,
-            receiptUrl: p.receiptUrl,
-            receiptType: p.receiptType,
-            isFixed: false,
-            source: p.source,
-            residentId: p.residentId,
-            condominiumId: p.condominiumId,
-            resident: p.resident,
-            isPayment: true  // Flag to identify from Payment table
-        }));
-
-        // Combine and sort by date
-        const combined = [
-            ...transactions.map(t => ({ ...t, isPayment: false })),
-            ...transformedPayments
-        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        return NextResponse.json(combined);
+        return NextResponse.json(transactions);
 
     } catch (error) {
         console.error("Error fetching transactions:", error);

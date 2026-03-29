@@ -23,10 +23,11 @@ export async function calculateResidentSolvency(residentId: number, condominiumI
         orderBy: [{ year: 'asc' }, { month: 'asc' }]
     });
 
-    // Obtener todos los pagos conciliados
-    const payments = await prisma.payment.findMany({
+    // Obtener todos los ingresos conciliados de la tabla Transaction
+    const transactions = await prisma.transaction.findMany({
         where: {
             residentId,
+            type: 'INCOME',
             status: 'RECONCILED'
         },
         orderBy: [{ date: 'asc' }]
@@ -34,16 +35,16 @@ export async function calculateResidentSolvency(residentId: number, condominiumI
 
     let advanceCredit = resident.advanceCredit || 0;
 
-    // Procesar pagos
-    for (const payment of payments) {
-        if (payment.month === null || payment.year === null) {
+    // Procesar transacciones
+    for (const transaction of transactions) {
+        if (transaction.month === null || transaction.year === null) {
             //Abono general, se suma al advanceCredit
-            advanceCredit += payment.amount;
+            advanceCredit += transaction.amount;
         } else {
             //Pago específico de un mes
-            const debt = debts.find(d => d.month === payment.month && d.year === payment.year);
+            const debt = debts.find(d => d.month === transaction.month && d.year === transaction.year);
             if (debt) {
-                debt.amountPaid += payment.amount;
+                debt.amountPaid += transaction.amount;
                 if (debt.amountPaid >= debt.amount) {
                     debt.isPaid = true;
                 }

@@ -54,28 +54,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             orderBy: { date: 'desc' }
         });
 
-        // Get payments if INCOME
-        let payments: any[] = [];
-        if (type === 'INCOME') {
-            const paymentWhere: any = { condominiumId: condoId };
-            if (startDate) paymentWhere.date = { ...paymentWhere.date, gte: new Date(startDate) };
-            if (endDate) paymentWhere.date = { ...paymentWhere.date, lte: new Date(endDate) };
-            if (status) paymentWhere.status = status;
-            
-            payments = await prisma.payment.findMany({
-                where: paymentWhere,
-                include: {
-                    resident: {
-                        select: { id: true, name: true, phone: true }
-                    }
-                },
-                orderBy: { date: 'desc' }
-            });
-        }
-
         const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-        // Combine and apply filters
+        // Use transactions only
         let combinedData: any[] = [
             ...transactions.map((t: any) => ({
                 id: t.id,
@@ -89,19 +70,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 resident: t.resident,
                 residentId: t.residentId,
                 source: (t as any).source || 'web'
-            })),
-            ...payments.map((p: any) => ({
-                id: p.id,
-                type: 'payment',
-                date: p.date,
-                description: p.notes || `Pago ${p.month ? monthNames[p.month - 1] : ''} ${p.year || ''}`.trim(),
-                category: 'Pago de Residente',
-                amount: p.amount,
-                status: p.status,
-                receiptUrl: p.receiptUrl,
-                resident: p.resident,
-                residentId: p.residentId,
-                source: (p as any).source || 'api'
             }))
         ];
 

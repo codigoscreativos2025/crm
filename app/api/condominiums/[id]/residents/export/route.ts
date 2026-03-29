@@ -47,10 +47,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             orderBy: { name: 'asc' }
         }) as any[];
 
-        // Get payments and debts for each resident
+        // Get transactions and debts for each resident
         const residentIds = residents.map(r => r.id);
-        const payments = await prisma.payment.findMany({
-            where: { residentId: { in: residentIds } },
+        const transactions = await prisma.transaction.findMany({
+            where: { residentId: { in: residentIds }, type: 'INCOME' },
             select: { residentId: true, amount: true, status: true }
         });
         const debts = await prisma.residentDebt.findMany({
@@ -58,12 +58,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             select: { residentId: true, amount: true, amountPaid: true, isPaid: true }
         });
 
-        const paymentsByResident: Record<number, any[]> = {};
+        const transactionsByResident: Record<number, any[]> = {};
         const debtsByResident: Record<number, any[]> = {};
         
-        payments.forEach(p => {
-            if (!paymentsByResident[p.residentId]) paymentsByResident[p.residentId] = [];
-            paymentsByResident[p.residentId].push(p);
+        transactions.forEach(p => {
+            if (p.residentId === null) return;
+            if (!transactionsByResident[p.residentId]) transactionsByResident[p.residentId] = [];
+            transactionsByResident[p.residentId].push(p);
         });
         
         debts.forEach(d => {
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
         // Table data
         const tableData = residents.map((r: any) => {
-            const rPayments = paymentsByResident[r.id] || [];
+            const rPayments = transactionsByResident[r.id] || [];
             const rDebts = debtsByResident[r.id] || [];
             const totalPaid = rPayments.filter((p: any) => p.status === 'RECONCILED').reduce((sum: number, p: any) => sum + p.amount, 0);
             const totalDebt = rDebts.filter((d: any) => !d.isPaid).reduce((sum: number, d: any) => sum + (d.amount - d.amountPaid), 0);

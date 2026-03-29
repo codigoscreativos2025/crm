@@ -12,9 +12,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
 
     const condoId = parseInt(params.id);
     const residentId = parseInt(params.residentId);
-    const paymentId = parseInt(params.paymentId);
+    const transactionId = parseInt(params.paymentId);
 
-    if (isNaN(condoId) || isNaN(residentId) || isNaN(paymentId)) {
+    if (isNaN(condoId) || isNaN(residentId) || isNaN(transactionId)) {
         return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
     }
 
@@ -24,11 +24,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        const payment = await prisma.payment.findUnique({
-            where: { id: paymentId }
+        const transaction = await prisma.transaction.findUnique({
+            where: { id: transactionId }
         });
 
-        if (!payment || payment.residentId !== residentId || payment.condominiumId !== condoId) {
+        if (!transaction || transaction.residentId !== residentId || transaction.condominiumId !== condoId) {
             return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
         }
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
                 await mkdir(uploadsDir, { recursive: true });
 
                 const extension = file.name.split(".").pop() || "pdf";
-                const filename = `receipt_${residentId}_${paymentId}_${Date.now()}.${extension}`;
+                const filename = `receipt_${residentId}_${transactionId}_${Date.now()}.${extension}`;
                 const filepath = join(uploadsDir, filename);
 
                 await writeFile(filepath, buffer);
@@ -78,15 +78,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             receiptType = ext === "pdf" ? "application/pdf" : `image/${ext}`;
         }
 
-        const updatedPayment = await prisma.payment.update({
-            where: { id: paymentId },
+        const updatedTransaction = await prisma.transaction.update({
+            where: { id: transactionId },
             data: {
                 receiptUrl,
                 receiptType
             }
         });
 
-        return NextResponse.json(updatedPayment);
+        return NextResponse.json(updatedTransaction);
 
     } catch (e) {
         console.error("Error uploading receipt:", e);

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         const monthsAgo = new Date();
         monthsAgo.setMonth(monthsAgo.getMonth() - numMonths);
 
-        // Get transactions (web) - only INCOME type
+        // Get all transactions (both web and api incomes, and expenses)
         const transactions = await prisma.transaction.findMany({
             where: {
                 condominiumId: condoId,
@@ -37,19 +37,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             },
             select: {
                 type: true,
-                amount: true,
-                date: true
-            }
-        });
-
-        // Get payments (API) - always treated as INCOME
-        const payments = await prisma.payment.findMany({
-            where: {
-                condominiumId: condoId,
-                date: { gte: monthsAgo },
-                status: 'RECONCILED'
-            },
-            select: {
                 amount: true,
                 date: true
             }
@@ -72,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             };
         }
 
-        // Process transactions from web
+        // Process all transactions
         transactions.forEach(t => {
             const d = new Date(t.date);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -82,15 +69,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 } else {
                     incomeVsExpenseMap[key].egr += t.amount;
                 }
-            }
-        });
-
-        // Process payments from API (treat as INCOME)
-        payments.forEach(p => {
-            const d = new Date(p.date);
-            const key = `${d.getFullYear()}-${d.getMonth()}`;
-            if (incomeVsExpenseMap[key]) {
-                incomeVsExpenseMap[key].ing += p.amount;
             }
         });
 

@@ -46,8 +46,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 orderBy: [{ year: 'desc' }, { month: 'desc' }]
             });
 
-            const payments = await prisma.payment.findMany({
-                where: { residentId: resident.id },
+            const payments = await prisma.transaction.findMany({
+                where: { residentId: resident.id, type: 'INCOME' },
                 orderBy: [{ date: 'desc' }]
             });
 

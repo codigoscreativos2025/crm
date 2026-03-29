@@ -11,20 +11,20 @@ async function calculateSolvency(residentId: number) {
         orderBy: [{ year: 'asc' }, { month: 'asc' }]
     });
 
-    const payments = await prisma.payment.findMany({
-        where: { residentId, status: 'RECONCILED' },
+    const transactions = await prisma.transaction.findMany({
+        where: { residentId, type: 'INCOME', status: 'RECONCILED' },
         orderBy: [{ date: 'asc' }]
     });
 
     let advanceCredit = resident.advanceCredit || 0;
 
-    for (const payment of payments) {
-        if (payment.month === null || payment.year === null) {
-            advanceCredit += payment.amount;
+    for (const transaction of transactions) {
+        if (transaction.month === null || transaction.year === null) {
+            advanceCredit += transaction.amount;
         } else {
-            const debt = debts.find(d => d.month === payment.month && d.year === payment.year);
+            const debt = debts.find(d => d.month === transaction.month && d.year === transaction.year);
             if (debt) {
-                debt.amountPaid += payment.amount;
+                debt.amountPaid += transaction.amount;
                 if (debt.amountPaid >= debt.amount) debt.isPaid = true;
             }
         }
@@ -64,9 +64,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
     }
 
     const condoId = parseInt(params.id);
-    const paymentId = parseInt(params.paymentId);
+    const transactionId = parseInt(params.paymentId);
 
-    if (isNaN(condoId) || isNaN(paymentId)) {
+    if (isNaN(condoId) || isNaN(transactionId)) {
         return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
     }
 
@@ -76,17 +76,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
-        if (!payment || payment.condominiumId !== condoId) {
+        const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
+        if (!transaction || transaction.condominiumId !== condoId) {
             return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
         }
 
-        const updated = await prisma.payment.update({
-            where: { id: paymentId },
+        const updated = await prisma.transaction.update({
+            where: { id: transactionId },
             data: { status: 'RECONCILED' }
         });
 
-        await calculateSolvency(payment.residentId);
+        if (transaction.residentId) {
+            await calculateSolvency(transaction.residentId);
+        }
 
         return NextResponse.json(updated);
     } catch (e) {

@@ -16,16 +16,11 @@ let cleanupInterval: NodeJS.Timeout | null = null;
 
 async function isFileReferencedInDatabase(fileUrl: string): Promise<boolean> {
     try {
-        const [payments, transactions] = await Promise.all([
-            prisma.payment.findFirst({
-                where: { receiptUrl: fileUrl }
-            }),
-            prisma.transaction.findFirst({
-                where: { receiptUrl: fileUrl }
-            })
-        ]);
+        const transaction = await prisma.transaction.findFirst({
+            where: { receiptUrl: fileUrl }
+        });
 
-        return !!(payments || transactions);
+        return !!transaction;
     } catch (err) {
         console.error('[ImageCleanup] Error checking file reference:', err);
         return true;

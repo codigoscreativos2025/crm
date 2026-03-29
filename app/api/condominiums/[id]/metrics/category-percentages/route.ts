@@ -26,22 +26,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         currentMonthStart.setDate(1);
         currentMonthStart.setHours(0,0,0,0);
 
-        // Agrupación de ingresos por categoría (from Transaction)
+        // Agrupación de ingresos por categoría
         const incomeGroup = await prisma.transaction.groupBy({
             by: ['category'],
             where: {
                 condominiumId: condoId,
                 type: 'INCOME',
-                date: { gte: currentMonthStart },
-                status: 'RECONCILED'
-            },
-            _sum: { amount: true }
-        });
-
-        // Get total payments (from API) for the month
-        const totalPayments = await prisma.payment.aggregate({
-            where: {
-                condominiumId: condoId,
                 date: { gte: currentMonthStart },
                 status: 'RECONCILED'
             },
@@ -60,19 +50,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             _sum: { amount: true }
         });
 
-        // Add payments to income group as "Pagos API"
-        const paymentAmount = totalPayments._sum.amount || 0;
-        const incomeWithPayments = [
-            ...incomeGroup.map(item => ({
-                name: item.category,
-                value: item._sum.amount || 0
-            })),
-            ...(paymentAmount > 0 ? [{ name: 'Pagos API', value: paymentAmount }] : [])
-        ];
-
-        const ingresos = incomeWithPayments.map((item, index) => ({
-            name: item.name,
-            value: item.value,
+        const ingresos = incomeGroup.map((item, index) => ({
+            name: item.category,
+            value: item._sum.amount || 0,
             color: COLORS[index % COLORS.length]
         })).filter(i => i.value > 0);
 

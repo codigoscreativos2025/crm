@@ -89,48 +89,20 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
             const startDate = new Date(year, month - 1, 1).toISOString();
             const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-            const fetchPromises: Promise<any>[] = [
+            const [tRes, settingsRes] = await Promise.all([
                 fetch(`/api/condominiums/${condoId}/transactions?type=${type}&startDate=${startDate}&endDate=${endDate}`),
                 fetch(`/api/condominiums/${condoId}`)
-            ];
-
-            if (type === 'INCOME') {
-                fetchPromises.push(fetch(`/api/condominiums/${condoId}/payments?startDate=${startDate}&endDate=${endDate}`));
-            }
-
-            const [tRes, settingsRes, pRes] = await Promise.all(fetchPromises);
+            ]);
 
             const tData = tRes.ok ? await tRes.json() : [];
             const settingsData = settingsRes.ok ? await settingsRes.json() : {};
             
-            let combinedData: TransactionItem[] = tData.map((t: any) => ({
+            const combinedData: TransactionItem[] = tData.map((t: any) => ({
                 ...t,
                 type: 'transaction' as const,
                 source: t.source || 'web'
             }));
 
-            if (type === 'INCOME' && pRes && pRes.ok) {
-                const pData = await pRes.json();
-                const paymentItems: TransactionItem[] = pData.map((p: any) => ({
-                    id: p.id,
-                    type: 'payment',
-                    date: p.date,
-                    description: p.notes || (p.month && p.year ? `Pago ${getMonthName(p.month)} ${p.year}` : 'Pago'),
-                    category: 'Pago de Residente',
-                    amount: p.amount,
-                    status: p.status,
-                    receiptUrl: p.receiptUrl,
-                    receiptType: p.receiptType,
-                    resident: p.resident,
-                    source: p.source || 'api',
-                    month: p.month,
-                    year: p.year,
-                    residentId: p.residentId
-                }));
-                combinedData = [...combinedData, ...paymentItems];
-            }
-
-            combinedData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setTransactions(combinedData);
 
             if (type === 'INCOME') {

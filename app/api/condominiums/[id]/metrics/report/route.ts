@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         const monthsAgo = new Date();
         monthsAgo.setMonth(monthsAgo.getMonth() - numMonths);
 
-        // Get transactions (web)
+        // Get all transactions
         const transactions = await prisma.transaction.findMany({
             where: {
                 condominiumId: condoId,
@@ -37,19 +37,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 amount: true,
                 date: true,
                 category: true
-            }
-        });
-
-        // Get payments (API) - treated as INCOME
-        const payments = await prisma.payment.findMany({
-            where: {
-                condominiumId: condoId,
-                date: { gte: monthsAgo },
-                status: 'RECONCILED'
-            },
-            select: {
-                amount: true,
-                date: true
             }
         });
 
@@ -99,18 +86,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 }
                 expenseByCategory[t.category || 'Otros'] = (expenseByCategory[t.category || 'Otros'] || 0) + t.amount;
             }
-        });
-
-        // Process payments from API (treat as INCOME with category "Pagos API")
-        payments.forEach(p => {
-            const d = new Date(p.date);
-            const monthKey = `${monthsStr[d.getMonth()]} ${d.getFullYear()}`;
-            
-            totalIncome += p.amount;
-            if (incomeByMonth[monthKey] !== undefined) {
-                incomeByMonth[monthKey] += p.amount;
-            }
-            incomeByCategory['Pagos API'] = (incomeByCategory['Pagos API'] || 0) + p.amount;
         });
 
         // Generate PDF
