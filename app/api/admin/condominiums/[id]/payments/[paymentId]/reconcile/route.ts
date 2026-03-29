@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateCondoRequest } from "@/lib/condoAuth";
 
 async function calculateSolvency(residentId: number) {
     const resident = await prisma.resident.findUnique({ where: { id: residentId } });
@@ -58,10 +58,9 @@ async function calculateSolvency(residentId: number) {
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string, paymentId: string } }) {
-    const session = await auth();
-    // @ts-ignore
-    if (session?.user?.role !== 'ADMIN') {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const auth = await authenticateCondoRequest(req);
+    if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     const condoId = parseInt(params.id);
@@ -72,6 +71,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
     }
 
     try {
+        const condo = await prisma.condominium.findUnique({ where: { id: condoId } });
+        if (!condo || condo.userId !== auth.ownerId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+
         const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
         if (!payment || payment.condominiumId !== condoId) {
             return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
