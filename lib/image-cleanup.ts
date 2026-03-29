@@ -14,6 +14,24 @@ let isRunning = false;
 let lastRunTime = 0;
 let cleanupInterval: NodeJS.Timeout | null = null;
 
+async function isFileReferencedInDatabase(fileUrl: string): Promise<boolean> {
+    try {
+        const [payments, transactions] = await Promise.all([
+            prisma.payment.findFirst({
+                where: { receiptUrl: fileUrl }
+            }),
+            prisma.transaction.findFirst({
+                where: { receiptUrl: fileUrl }
+            })
+        ]);
+
+        return !!(payments || transactions);
+    } catch (err) {
+        console.error('[ImageCleanup] Error checking file reference:', err);
+        return true;
+    }
+}
+
 export async function cleanupOldImages(): Promise<{ deleted: number; errors: number }> {
     if (isRunning) {
         console.log('[ImageCleanup] Cleanup already running, skipping...');
@@ -60,8 +78,7 @@ export async function cleanupOldImages(): Promise<{ deleted: number; errors: num
             for (const msg of messages) {
                 if (msg.fileUrl) {
                     try {
-                        // Skip receipt files from condominiums module
-                        if (msg.fileUrl.includes('/receipts/')) {
+                        if (msg.fileUrl.includes('/receipts/') || msg.fileUrl.startsWith('/api/files/')) {
                             continue;
                         }
                         const filename = msg.fileUrl.split('/').pop();
@@ -93,6 +110,58 @@ export async function cleanupOldImages(): Promise<{ deleted: number; errors: num
         console.log(`[ImageCleanup] Completed. Deleted ${deleted} image references, ${errors} errors`);
     } catch (err) {
         console.error('[ImageCleanup] Error during cleanup:', err);
+        errors++;
+    } finally {
+        isRunning = false;
+    }
+
+    return { deleted, errors };
+}
+
+export async function cleanupUploadedFiles(): Promise<{ deleted: number; errors: number }> {
+    if (isRunning) {
+        console.log('[ImageCleanup] Cleanup already running, skipping...');
+        return { deleted: 0, errors: 0 };
+    }
+
+    isRunning = true;
+    let deleted = 0;
+    let errors = 0;
+
+    try {
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        
+        try {
+            const files = await readdir(uploadsDir);
+            
+            for (const file of files) {
+                const filePath = path.join(uploadsDir, file);
+                const fileStats = await stat(filePath);
+                
+                if (fileStats.isDirectory()) continue;
+                
+                const relativePath = `/uploads/${file}`;
+                
+                const isReferenced = await isFileReferencedInDatabase(relativePath);
+                
+                if (!isReferenced) {
+                    try {
+                        await unlink(filePath);
+                        deleted++;
+                        console.log(`[ImageCleanup] Deleted unused file: ${file}`);
+                    } catch (err) {
+                        console.error(`[ImageCleanup] Error deleting file ${file}:`, err);
+                        errors++;
+                    }
+                }
+            }
+        } catch (err) {
+            console.log('[ImageCleanup] Uploads directory does not exist or is empty');
+        }
+
+        console.log(`[FileCleanup] Completed. Deleted ${deleted} unused files, ${errors} errors`);
+    } catch (err) {
+        console.error('[FileCleanup] Error during cleanup:', err);
         errors++;
     } finally {
         isRunning = false;

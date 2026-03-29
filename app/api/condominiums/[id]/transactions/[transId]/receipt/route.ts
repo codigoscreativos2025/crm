@@ -42,39 +42,63 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             return NextResponse.json({ error: "Transacción no encontrada" }, { status: 404 });
         }
 
-        const formData = await req.formData();
-        const file = formData.get('file') as File;
+        const contentType = req.headers.get("content-type") || "";
+        let receiptUrl: string;
+        let receiptType: string;
 
-        if (!file) {
-            return NextResponse.json({ error: "No se proporcionó ningún archivo" }, { status: 400 });
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+            const file = formData.get('file') as File | null;
+            const urlFromForm = formData.get("receiptUrl") as string | null;
+
+            if (file) {
+                const buffer = Buffer.from(await file.arrayBuffer());
+                const ext = path.extname(file.name) || '';
+                const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+                const fileName = `receipt_${transId}_${uniqueSuffix}`;
+
+                const uploadDir = path.join(process.cwd(), 'uploads', 'receipts');
+                if (!fs.existsSync(uploadDir)) {
+                    fs.mkdirSync(uploadDir, { recursive: true });
+                }
+
+                const filePath = path.join(uploadDir, fileName);
+                await writeFile(filePath, buffer);
+
+                receiptUrl = `/uploads/receipts/${fileName}`;
+                receiptType = file.type;
+            } else if (urlFromForm) {
+                receiptUrl = urlFromForm;
+                const ext = urlFromForm.split(".").pop()?.toLowerCase() || "";
+                receiptType = ext === "pdf" ? "application/pdf" : `image/${ext}`;
+            } else {
+                return NextResponse.json({ error: "Debe proporcionar un archivo (file) o una URL interna (receiptUrl)" }, { status: 400 });
+            }
+        } else {
+            const body = await req.json();
+            receiptUrl = body.receiptUrl;
+
+            if (!receiptUrl) {
+                return NextResponse.json({ error: "Debe proporcionar receiptUrl (URL interna del servidor)" }, { status: 400 });
+            }
+
+            if (!receiptUrl.startsWith("/api/files/")) {
+                return NextResponse.json({ error: "La URL debe ser una ruta interna del servidor (ej: /api/files/xxx-File.jpg)" }, { status: 400 });
+            }
+
+            const ext = receiptUrl.split(".").pop()?.toLowerCase() || "";
+            receiptType = ext === "pdf" ? "application/pdf" : `image/${ext}`;
         }
-
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const ext = path.extname(file.name) || '';
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
-        const fileName = `receipt_${transId}_${uniqueSuffix}`;
-
-        // Asegurar que exista el directorio uploads/receipts
-        const uploadDir = path.join(process.cwd(), 'uploads', 'receipts');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        const filePath = path.join(uploadDir, fileName);
-        await writeFile(filePath, buffer);
-
-        // Actualizar transacción
-        const fileUrl = `/uploads/receipts/${fileName}`; // Asumiendo que /uploads está mapeado en Next.js public/ o routeado
 
         const updated = await prisma.transaction.update({
             where: { id: transId },
             data: {
-                receiptUrl: fileUrl,
-                receiptType: file.type
+                receiptUrl,
+                receiptType
             }
         });
 
-        return NextResponse.json({ success: true, url: fileUrl, transaction: updated });
+        return NextResponse.json({ success: true, url: receiptUrl, transaction: updated });
 
     } catch (error) {
         console.error("Error uploading receipt:", error);

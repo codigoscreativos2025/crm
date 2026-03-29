@@ -32,32 +32,57 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
             return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
         }
 
-        const formData = await req.formData();
-        const file = formData.get("file") as File | null;
+        const contentType = req.headers.get("content-type") || "";
+        let receiptUrl: string;
+        let receiptType: string;
 
-        if (!file) {
-            return NextResponse.json({ error: "Archivo requerido" }, { status: 400 });
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+            const file = formData.get("file") as File | null;
+            const urlFromForm = formData.get("receiptUrl") as string | null;
+
+            if (file) {
+                const bytes = await file.arrayBuffer();
+                const buffer = Buffer.from(bytes);
+
+                const uploadsDir = join(process.cwd(), "public", "uploads", "receipts");
+                await mkdir(uploadsDir, { recursive: true });
+
+                const extension = file.name.split(".").pop() || "pdf";
+                const filename = `receipt_${residentId}_${paymentId}_${Date.now()}.${extension}`;
+                const filepath = join(uploadsDir, filename);
+
+                await writeFile(filepath, buffer);
+                receiptUrl = `/uploads/receipts/${filename}`;
+                receiptType = file.type;
+            } else if (urlFromForm) {
+                receiptUrl = urlFromForm;
+                const ext = urlFromForm.split(".").pop()?.toLowerCase() || "";
+                receiptType = ext === "pdf" ? "application/pdf" : `image/${ext}`;
+            } else {
+                return NextResponse.json({ error: "Debe proporcionar un archivo (file) o una URL interna (receiptUrl)" }, { status: 400 });
+            }
+        } else {
+            const body = await req.json();
+            receiptUrl = body.receiptUrl;
+
+            if (!receiptUrl) {
+                return NextResponse.json({ error: "Debe proporcionar receiptUrl (URL interna del servidor)" }, { status: 400 });
+            }
+
+            if (!receiptUrl.startsWith("/api/files/")) {
+                return NextResponse.json({ error: "La URL debe ser una ruta interna del servidor (ej: /api/files/xxx-File.jpg)" }, { status: 400 });
+            }
+
+            const ext = receiptUrl.split(".").pop()?.toLowerCase() || "";
+            receiptType = ext === "pdf" ? "application/pdf" : `image/${ext}`;
         }
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        const uploadsDir = join(process.cwd(), "public", "uploads", "receipts");
-        await mkdir(uploadsDir, { recursive: true });
-
-        const extension = file.name.split(".").pop() || "pdf";
-        const filename = `receipt_${residentId}_${paymentId}_${Date.now()}.${extension}`;
-        const filepath = join(uploadsDir, filename);
-
-        await writeFile(filepath, buffer);
-
-        const fileUrl = `/uploads/receipts/${filename}`;
 
         const updatedPayment = await prisma.payment.update({
             where: { id: paymentId },
             data: {
-                receiptUrl: fileUrl,
-                receiptType: file.type
+                receiptUrl,
+                receiptType
             }
         });
 

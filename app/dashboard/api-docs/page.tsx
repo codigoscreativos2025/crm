@@ -383,15 +383,23 @@ const endpoints: Endpoint[] = [
     method: 'POST',
     path: '/api/condominiums/{id}/residents/{residentId}/payments/{paymentId}/receipt',
     title: 'Subir Comprobante de Pago',
-    description: 'Sube un archivo de comprobante (imagen/PDF) para un pago.',
-    generalDescription: 'Asocia un archivo de soporte (boucher, recibo, captura de pantalla) a un pago existente. El archivo se guarda y puede descargarse posteriormente.',
+    description: 'Sube un archivo de comprobante o associa una URL interna para un pago.',
+    generalDescription: 'Asocia un comprobante (boucher, recibo, captura) a un pago existente. Se puede subir un archivo directamente O proporcionar una URL interna del servidor (/api/files/...). Los comprobantes NO se eliminan con la limpieza automática de imágenes del sistema.',
     category: 'Pagos',
     auth: 'session | userApiKey',
     fields: [
-      { name: 'file', type: 'File', required: true, description: 'Archivo de comprobante (imagen JPEG/PNG o PDF).' }
+      { name: 'file', type: 'File', required: false, description: 'Archivo de comprobante (multipart/form-data). Imágenes o PDF.' },
+      { name: 'receiptUrl', type: 'string', required: false, description: 'URL interna del servidor. Ej: /api/files/23576209-e252-437e-964b-2d9bbab869d7-File.jpg' }
     ],
-    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/1/receipt?userApiKey=TU_API_KEY" \\\n  -F "file=@comprobante.jpg"`,
-    responseJSON: `{\n  "success": true,\n  "receiptUrl": "/api/files/comprobante.jpg"\n}`
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/1/receipt?userApiKey=TU_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"receiptUrl": "/api/files/23576209-e252-437e-964b-2d9bbab869d7-File.jpg"}'`,
+    note: 'Se debe proporcionar "file" O "receiptUrl", no ambos. receiptUrl debe ser una ruta interna del servidor (/api/files/...)',
+    responseJSON: `{
+  "success": true,
+  "receiptUrl": "/api/files/23576209-e252-437e-964b-2d9bbab869d7-File.jpg",
+  "receiptType": "image/jpeg"
+}`
   },
   {
     method: 'POST',
