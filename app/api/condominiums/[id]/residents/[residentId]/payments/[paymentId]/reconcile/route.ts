@@ -11,13 +11,21 @@ async function calculateResidentSolvency(residentId: number) {
         orderBy: [{ year: 'asc' }, { month: 'asc' }]
     });
 
+    // Get reconciled payments from Payment table
     const payments = await prisma.payment.findMany({
         where: { residentId, status: 'RECONCILED' },
         orderBy: [{ date: 'asc' }]
     });
 
+    // Get reconciled transactions from Transaction table (INCOME only)
+    const transactions = await prisma.transaction.findMany({
+        where: { residentId, type: 'INCOME', status: 'RECONCILED' },
+        orderBy: [{ date: 'asc' }]
+    });
+
     let advanceCredit = resident.advanceCredit || 0;
 
+    // Process payments from Payment table
     for (const payment of payments) {
         if (payment.month === null || payment.year === null) {
             advanceCredit += payment.amount;
@@ -30,6 +38,11 @@ async function calculateResidentSolvency(residentId: number) {
                 }
             }
         }
+    }
+
+    // Process transactions from Transaction table (treat as advance credit)
+    for (const transaction of transactions) {
+        advanceCredit += transaction.amount;
     }
 
     for (const debt of debts) {
@@ -77,25 +90,45 @@ export async function POST(req: NextRequest, { params }: { params: { id: string,
         return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
     }
 
+    // Get type from query param - defaults to 'payment'
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get('type') || 'payment';
+
     try {
         const condo = await prisma.condominium.findUnique({ where: { id: condoId } });
         if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         }
 
-        const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
-        if (!payment || payment.residentId !== residentId || payment.condominiumId !== condoId) {
-            return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
-        }
+        let updated;
 
-        const updatedPayment = await prisma.payment.update({
-            where: { id: paymentId },
-            data: { status: 'RECONCILED' }
-        });
+        if (type === 'transaction') {
+            // Handle Transaction reconciliation
+            const transaction = await prisma.transaction.findUnique({ where: { id: paymentId } });
+            if (!transaction || transaction.residentId !== residentId || transaction.condominiumId !== condoId) {
+                return NextResponse.json({ error: "Transacción no encontrada" }, { status: 404 });
+            }
+
+            updated = await prisma.transaction.update({
+                where: { id: paymentId },
+                data: { status: 'RECONCILED' }
+            });
+        } else {
+            // Handle Payment reconciliation (default)
+            const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+            if (!payment || payment.residentId !== residentId || payment.condominiumId !== condoId) {
+                return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
+            }
+
+            updated = await prisma.payment.update({
+                where: { id: paymentId },
+                data: { status: 'RECONCILED' }
+            });
+        }
 
         await calculateResidentSolvency(residentId);
 
-        return NextResponse.json(updatedPayment);
+        return NextResponse.json(updated);
     } catch (e) {
         console.error("Error reconciling payment:", e);
         return NextResponse.json({ error: "Error interno" }, { status: 500 });
