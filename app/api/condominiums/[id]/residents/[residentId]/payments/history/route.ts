@@ -26,13 +26,45 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
             return NextResponse.json({ error: "Residente no encontrado" }, { status: 404 });
         }
 
+        const { searchParams } = new URL(req.url);
+        const yearFilter = searchParams.get('year');
+        
         const debts = await prisma.residentDebt.findMany({
             where: { residentId },
             orderBy: [{ year: 'desc' }, { month: 'desc' }]
         });
 
+        // Build payment where clause
+        const paymentWhere: any = { residentId };
+        if (yearFilter) {
+            const year = parseInt(yearFilter);
+            paymentWhere.date = {
+                gte: new Date(year, 0, 1),
+                lte: new Date(year, 11, 31)
+            };
+        }
+
+        // Get payments from Payment table (API)
         const payments = await prisma.payment.findMany({
-            where: { residentId },
+            where: paymentWhere,
+            orderBy: [{ date: 'desc' }]
+        });
+
+        // Get income transactions from Transaction table (web)
+        const transactionWhere: any = {
+            residentId,
+            type: 'INCOME'
+        };
+        if (yearFilter) {
+            const year = parseInt(yearFilter);
+            transactionWhere.date = {
+                gte: new Date(year, 0, 1),
+                lte: new Date(year, 11, 31)
+            };
+        }
+
+        const transactions = await prisma.transaction.findMany({
+            where: transactionWhere,
             orderBy: [{ date: 'desc' }]
         });
 
@@ -94,20 +126,41 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
         doc.text('HISTORIAL DE PAGOS', 14, currentY);
         currentY += 5;
 
-        const paymentData = payments.map(p => [
+        // Combine payments and transactions
+        const allPayments = [
+            ...payments.map(p => ({
+                date: p.date,
+                month: p.month,
+                year: p.year,
+                amount: p.amount,
+                status: p.status,
+                source: 'API'
+            })),
+            ...transactions.map(t => ({
+                date: t.date,
+                month: null,
+                year: null,
+                amount: t.amount,
+                status: t.status,
+                source: 'Web'
+            }))
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const paymentData = allPayments.map(p => [
             p.date ? new Date(p.date).toLocaleDateString() : '-',
             p.month && p.year ? `${monthNames[p.month - 1]} ${p.year}` : 'Abono general',
             `$${p.amount.toFixed(2)}`,
-            p.status === 'RECONCILED' ? '✓' : '⏳'
+            p.status === 'RECONCILED' ? '✓' : '⏳',
+            p.source
         ]);
 
         if (paymentData.length === 0) {
-            paymentData.push(['Sin pagos', '-', '-', '-']);
+            paymentData.push(['Sin pagos', '-', '-', '-', '-']);
         }
 
         autoTable(doc, {
             startY: currentY,
-            head: [['FECHA', 'CONCEPTO', 'IMPORTE', 'ESTADO']],
+            head: [['FECHA', 'CONCEPTO', 'IMPORTE', 'ESTADO', 'ORIGEN']],
             body: paymentData,
             theme: 'striped',
             headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255] },
@@ -117,7 +170,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
         // @ts-ignore
         const finalY = doc.lastAutoTable.finalY + 10;
 
-        const totalPaid = payments.filter(p => p.status === 'RECONCILED').reduce((sum, p) => sum + p.amount, 0);
+        // Calculate total from both tables
+        const totalPaid = allPayments.filter(p => p.status === 'RECONCILED').reduce((sum, p) => sum + p.amount, 0);
         const totalDebt = debts.filter(d => !d.isPaid).reduce((sum, d) => sum + (d.amount - d.amountPaid), 0);
 
         doc.setFontSize(11);
