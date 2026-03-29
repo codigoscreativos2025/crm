@@ -12,6 +12,7 @@ interface TransactionItem {
     amount: number;
     status: string;
     receiptUrl: string | null;
+    receiptType?: string | null;
     resident?: { id: number; name: string; phone: string } | null;
     source?: string;
     month?: number | null;
@@ -66,6 +67,17 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
     const [editingType, setEditingType] = useState<'transaction' | 'payment' | null>(null);
     const [editAmount, setEditAmount] = useState('');
 
+    // Image modal
+    const [imageModal, setImageModal] = useState<{ open: boolean; url: string; type: string }>({ open: false, url: '', type: '' });
+
+    const getReceiptUrl = (receiptUrl: string | null): string => {
+        if (!receiptUrl) return '';
+        if (receiptUrl.startsWith('/api/files/')) return receiptUrl;
+        if (receiptUrl.startsWith('/uploads/')) return receiptUrl;
+        if (receiptUrl.startsWith('uploads/')) return `/${receiptUrl}`;
+        return receiptUrl;
+    };
+
     useEffect(() => {
         fetchData();
     }, [type, condoId, filterMonth]);
@@ -108,6 +120,7 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                     amount: p.amount,
                     status: p.status,
                     receiptUrl: p.receiptUrl,
+                    receiptType: p.receiptType,
                     resident: p.resident,
                     source: p.source || 'api',
                     month: p.month,
@@ -626,10 +639,13 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     {t.receiptUrl ? (
-                                        <a href={`/api/files/${t.receiptUrl.replace('/uploads/', '')}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 flex flex-col items-center justify-center text-xs">
+                                        <button 
+                                            onClick={() => setImageModal({ open: true, url: getReceiptUrl(t.receiptUrl), type: t.receiptType || 'image/jpeg' })}
+                                            className="text-blue-600 hover:text-blue-800 flex flex-col items-center justify-center text-xs"
+                                        >
                                             <FileText className="h-5 w-5 mb-0.5" />
                                             Ver
-                                        </a>
+                                        </button>
                                     ) : (
                                         <div className="flex flex-col items-center">
                                             <input type="file" id={`upload-${t.id}`} className="hidden" onChange={(e) => handleFileUpload(e, t.id)} />
@@ -669,6 +685,39 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                     </tbody>
                 </table>
             </div>
+
+            {/* Image Modal */}
+            {imageModal.open && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    onClick={() => setImageModal({ open: false, url: '', type: '' })}
+                >
+                    <div 
+                        className="relative max-w-4xl max-h-[90vh] w-full"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button 
+                            onClick={() => setImageModal({ open: false, url: '', type: '' })}
+                            className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
+                        >
+                            <X className="h-8 w-8" />
+                        </button>
+                        {imageModal.type && imageModal.type.includes('pdf') ? (
+                            <iframe 
+                                src={imageModal.url} 
+                                className="w-full h-[80vh] rounded-lg"
+                                title="Receipt PDF"
+                            />
+                        ) : (
+                            <img 
+                                src={imageModal.url} 
+                                alt="Receipt" 
+                                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
