@@ -139,7 +139,37 @@ curl -X POST "https://crm.tudominio.com/api/condominiums/1/residents/5/payments?
 
 ---
 
-## 6. Resumen de Conexión
+## 6. Generar Reporte Financiero PDF
+
+Usa este endpoint para generar un informe financiero completo en formato PDF.
+
+### Configuración del Nodo HTTP Request en n8n:
+
+1.  **Method**: `GET`
+2.  **URL**: `https://crm.tudominio.com/api/condominiums/{ID}/metrics/report`
+3.  **Query Parameters**:
+    *   `userApiKey`: Tu API Key del usuario
+    *   `months`: Número de meses a incluir (default: 6)
+4.  **Options**:
+    *   **Response**: Binary
+
+### Ejemplo de curl:
+```bash
+curl -X GET "https://crm.tudominio.com/api/condominiums/1/metrics/report?userApiKey=TU_API_KEY&months=6" \
+  -H "Accept: application/pdf" \
+  -o reporte_financiero.pdf
+```
+
+**Contenido del PDF:**
+- Resumen ejecutivo (total ingresos, egresos, balance)
+- Estado de morosidad (solventes vs insolventes)
+- Ingresos vs Egresos por mes
+- Desglose por categoría de ingresos
+- Desglose por categoría de egresos
+
+---
+
+## 7. Resumen de Conexión
 
 *   **Meta** -> (Webhook) -> **n8n** -> (API Key) -> **CRM**
 *   **CRM** -> (Webhook) -> **n8n** -> (Bearer Token) -> **Meta**

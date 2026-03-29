@@ -461,7 +461,27 @@ const endpoints: Endpoint[] = [
     category: 'Métricas',
     auth: 'session | userApiKey',
     curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/metrics/solvent-residents?userApiKey=TU_API_KEY"`,
-    responseJSON: `{\n  "total": 24,\n  "solvent": 18,\n  "insolvent": 6,\n  "percentage": 75.0\n}`
+    responseJSON: `{
+  "total": 24,
+  "solvent": 18,
+  "insolvent": 6,
+  "percentage": 75.0
+}`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/metrics/report',
+    title: 'Generar Reporte Financiero PDF',
+    description: 'Genera un PDF con el informe financiero completo del condominio.',
+    generalDescription: 'Genera un documento PDF consolidado con el resumen financiero del condominio. Incluye: total de ingresos/egresos, balance, porcentaje de morosidad, gráfico de ingresos vs egresos por mes, y desglose por categoría. Útil para reportes ejecutivos y auditoría.',
+    category: 'Métricas',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'months', example: '?months=6', description: 'Cantidad de meses a incluir en el reporte (default: 6)' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/metrics/report?userApiKey=TU_API_KEY&months=6" \\
+  -H "Accept: application/pdf"`,
+    responseJSON: `// Archivo binario PDF (inline)`
   },
   // Admin
   {
