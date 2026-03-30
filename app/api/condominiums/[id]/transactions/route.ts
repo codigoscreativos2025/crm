@@ -92,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (isNaN(condoId)) return NextResponse.json({ error: "ID Inválido" }, { status: 400 });
 
         const body = await req.json();
-        const { type, category, amount, description, date, status, residentId, receiptUrl, receiptType, isFixed, source } = body;
+        const { type, category, amount, description, date, status, residentId, receiptUrl, receiptType, isFixed, source, paymentMethodId, reference, month, year } = body;
 
         if (!type || !category || amount === undefined) {
             return NextResponse.json({ error: "Faltan datos obligatorios (type, category, amount)" }, { status: 400 });
@@ -102,12 +102,42 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             return NextResponse.json({ error: "Tipo de transacción inválido" }, { status: 400 });
         }
 
+        // Validaciones de campos obligatorios
+        if (!receiptUrl) {
+            return NextResponse.json({ error: "El campo receiptUrl (URL del comprobante) es obligatorio" }, { status: 400 });
+        }
+
+        if (!paymentMethodId) {
+            return NextResponse.json({ error: "El campo paymentMethodId (método de pago) es obligatorio" }, { status: 400 });
+        }
+
+        if (!reference || reference.length < 4) {
+            return NextResponse.json({ error: "El campo reference es obligatorio y debe tener al menos 4 caracteres" }, { status: 400 });
+        }
+
         const condo = await prisma.condominium.findUnique({
             where: { id: condoId }
         });
 
         if (!condo || condo.userId !== auth.ownerId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+
+        // Validar método de pago
+        const paymentMethod = await prisma.paymentMethod.findUnique({ where: { id: parseInt(paymentMethodId) } });
+        if (!paymentMethod || paymentMethod.condominiumId !== condoId) {
+            return NextResponse.json({ error: "Método de pago no válido" }, { status: 400 });
+        }
+
+        // Para ingresos, validar que el nombre del método coincida (case-insensitive, accent-insensitive, space-insensitive)
+        if (type === 'INCOME') {
+            const normalizeString = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+            const inputMethodName = normalizeString(paymentMethod.name);
+            const configuredNames = normalizeString(paymentMethod.name);
+            
+            if (!configuredNames.includes(inputMethodName) && inputMethodName !== configuredNames) {
+                return NextResponse.json({ error: "El método de pago no coincide con los configurados" }, { status: 400 });
+            }
         }
 
         if (type === 'INCOME' && residentId) {
@@ -129,8 +159,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 isFixed: type === 'EXPENSE' ? (isFixed === true) : false,
                 source: source || 'web',
                 residentId: type === 'INCOME' && residentId ? parseInt(residentId) : null,
-                receiptUrl: receiptUrl || null,
-                receiptType: receiptType || null
+                receiptUrl: receiptUrl,
+                receiptType: receiptType || null,
+                paymentMethodId: parseInt(paymentMethodId),
+                reference: reference.trim(),
+                month: month ? parseInt(month) : null,
+                year: year ? parseInt(year) : null
             }
         });
 

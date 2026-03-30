@@ -148,11 +148,12 @@ model Condominium {
   invoiceDay          Int        @default(1)
   paymentGraceDays    Int        @default(15) // Días de gracia para pagar
 
-  residents     Resident[]
-  transactions  Transaction[]
-  logs          CondominiumLog[]
-  invoices      Invoice[]
-  residentDebts ResidentDebt[]
+  residents        Resident[]
+  transactions     Transaction[]
+  logs             CondominiumLog[]
+  invoices         Invoice[]
+  residentDebts    ResidentDebt[]
+  paymentMethods   PaymentMethod[]
 }
 
 model CondominiumLog {
@@ -198,6 +199,7 @@ model Resident {
 
   transactions   Transaction[]
   residentDebts  ResidentDebt[]
+  suggestions    ResidentSuggestion[]
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -206,23 +208,33 @@ model Resident {
 }
 
 model Transaction {
-  id             Int         @id @default(autoincrement())
-  type           String      // 'INCOME' (Ingreso) o 'EXPENSE' (Egreso)
-  category       String      // Ej: 'Pago', 'Cuotas especiales', 'Gastos fijos', 'Gastos extraordinarios'
-  amount         Float
-  description    String?
-  status         String      @default("PENDING") // 'PENDING' (Por conciliar), 'RECONCILED' (Conciliado)
-  date           DateTime    @default(now())
-  isFixed        Boolean     @default(false) // Si es egreso fijo, se replica al mes siguiente
-  source         String      @default("web")  // "api" o "web"
+  id               Int         @id @default(autoincrement())
+  type             String      // 'INCOME' (Ingreso) o 'EXPENSE' (Egreso)
+  category         String      // Ej: 'Pago', 'Cuotas especiales', 'Gastos fijos', 'Gastos extraordinarios'
+  amount           Float
+  description      String?
+  status           String      @default("PENDING") // 'PENDING' (Por conciliar), 'RECONCILED' (Conciliado)
+  date             DateTime    @default(now())
+  isFixed          Boolean     @default(false) // Si es egreso fijo, se replica al mes siguiente
+  source           String      @default("web")  // "api" o "web"
   
-  // Soportes (Boucher / Recibo)
-  receiptUrl     String?
-  receiptType    String?     // mime type (pdf, jpeg, etc)
+  // Soportes (Boucher / Recibo) - OBLIGATORIO
+  receiptUrl       String?
+  receiptType      String?     // mime type (pdf, jpeg, etc)
   
   // Mes y año que cancela (para pagos de meses específicos)
-  month          Int?        // Mes que cancela (null = abono general)
-  year           Int?        // Año que cancela
+  month            Int?        // Mes que cancela (null = abono general)
+  year             Int?        // Año que cancela
+  
+  // Método de pago
+  paymentMethodId  Int?
+  paymentMethod    PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  
+  // Referencia del pago (mín 4 caracteres)
+  reference        String?
+  
+  // Motivo de rechazo (mín 10 caracteres)
+  rejectionReason  String?
   
   // Relaciones
   condominiumId  Int
@@ -252,4 +264,26 @@ model ResidentDebt {
   updatedAt      DateTime    @updatedAt
   
   @@unique([residentId, month, year])
+}
+
+model PaymentMethod {
+  id            Int       @id @default(autoincrement())
+  name          String    // ej: "Transferencia", "Pago Móvil", "Efectivo"
+  fields        String    // JSON: [{"key": "banco", "label": "Banco"}]
+  condominiumId Int
+  condominium   Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  createdAt     DateTime  @default(now())
+}
+
+model ResidentSuggestion {
+  id          Int       @id @default(autoincrement())
+  residentId  Int
+  resident    Resident  @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  type        String    // "SUGERENCIA" | "RECLAMO" | "OTRO"
+  description String    // mín 10 caracteres
+  status      String    @default("PENDIENTE") // "PENDIENTE", "EN_PROCESO", "ATENDIDA", "RECHAZADA"
+  adminNote   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
