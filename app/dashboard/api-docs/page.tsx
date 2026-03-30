@@ -508,6 +508,122 @@ const endpoints: Endpoint[] = [
     auth: 'session | userApiKey',
     curl: `curl -X POST "https://crm.pivotsoluciones.com/api/admin/condominiums/1/payments/1/reconcile?userApiKey=TU_API_KEY"`,
     responseJSON: `{\n  "success": true,\n  "payment": {\n    "id": 1,\n    "status": "RECONCILED"\n  },\n  "residentStatus": "SOLVENTE"\n}`
+  },
+  // Métodos de Pago
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/payment-methods',
+    title: 'Listar Métodos de Pago',
+    description: 'Retorna los métodos de pago configurados del condominio.',
+    generalDescription: 'Obtiene la lista de métodos de pago disponibles para el condominio. Cada método puede tener campos personalizables como banco, número de cuenta, etc.',
+    category: 'Métodos de Pago',
+    auth: 'session | userApiKey',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/payment-methods?userApiKey=TU_API_KEY"`,
+    responseJSON: `[{\n  "id": 1,\n  "name": "Transferencia",\n  "fields": "[{\\"key\\":\\"banco\\",\\"label\\":\\"Banco\\"}]"\n}]`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/payment-methods',
+    title: 'Crear Método de Pago',
+    description: 'Crea un nuevo método de pago para el condominio.',
+    generalDescription: 'Crea un método de pago personalizado. Los campos se definen como un JSON array con clave y etiqueta.',
+    category: 'Métodos de Pago',
+    auth: 'session | userApiKey',
+    fields: [
+      { name: 'name', type: 'string', required: true, description: 'Nombre del método (ej: Transferencia, Pago Móvil)' },
+      { name: 'fields', type: 'JSON', required: false, description: 'Campos personalizables [{"key":"banco","label":"Banco"}]' }
+    ],
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/payment-methods?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name": "Pago Móvil", "fields": [{"key": "cedula", "label": "Cédula"}]}'`,
+    responseJSON: `{\n  "id": 2,\n  "name": "Pago Móvil",\n  "fields": "[{\\"key\\":\\"cedula\\",\\"label\\":\\"Cédula\\"}]"\n}`
+  },
+  {
+    method: 'PUT',
+    path: '/api/condominiums/{id}/payment-methods/{methodId}',
+    title: 'Actualizar Método de Pago',
+    description: 'Actualiza un método de pago existente.',
+    category: 'Métodos de Pago',
+    auth: 'session | userApiKey',
+    curl: `curl -X PUT "https://crm.pivotsoluciones.com/api/condominiums/1/payment-methods/1?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name": "Transferencia Bancaria"}'`,
+    responseJSON: `{\n  "id": 1,\n  "name": "Transferencia Bancaria"\n}`
+  },
+  {
+    method: 'DELETE',
+    path: '/api/condominiums/{id}/payment-methods/{methodId}',
+    title: 'Eliminar Método de Pago',
+    description: 'Elimina un método de pago. No es posible si hay transacciones asociadas.',
+    category: 'Métodos de Pago',
+    auth: 'session | userApiKey',
+    curl: `curl -X DELETE "https://crm.pivotsoluciones.com/api/condominiums/1/payment-methods/1?userApiKey=TU_API_KEY"`,
+    responseJSON: `{\n  "success": true\n}`
+  },
+  // Transacciones con comprobante
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/transactions',
+    title: 'Registrar Transacción con Comprobante',
+    description: 'Registra un ingreso o egreso con comprobante obligatorio.',
+    generalDescription: 'Crea una transacción (ingreso o egreso) con los campos obligatorios: receiptUrl, paymentMethodId y reference. Para ingresos, el método de pago debe coincidir con los configurados.',
+    category: 'Transacciones',
+    auth: 'session | userApiKey',
+    fields: [
+      { name: 'type', type: 'string', required: true, description: '"INCOME" o "EXPENSE"' },
+      { name: 'category', type: 'string', required: true, description: 'Categoría de la transacción' },
+      { name: 'amount', type: 'number', required: true, description: 'Monto' },
+      { name: 'receiptUrl', type: 'string', required: true, description: 'URL del comprobante (obligatorio)' },
+      { name: 'paymentMethodId', type: 'number', required: true, description: 'ID del método de pago' },
+      { name: 'reference', type: 'string', required: true, description: 'Referencia del pago (mín 4 caracteres)' },
+      { name: 'date', type: 'string', required: false, description: 'Fecha (YYYY-MM-DD)' },
+      { name: 'residentId', type: 'number', required: false, description: 'ID del residente (para ingresos)' }
+    ],
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/transactions?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"type": "INCOME", "category": "Cuota Mensual", "amount": 1500, "receiptUrl": "/api/files/comprobante.jpg", "paymentMethodId": 1, "reference": "12345678"}'`,
+    responseJSON: `{\n  "id": 1,\n  "type": "INCOME",\n  "amount": 1500,\n  "status": "PENDING"\n}`
+  },
+  // Sugerencias
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/suggestions',
+    title: 'Listar Sugerencias',
+    description: 'Retorna las sugerencias, reclamos y otras solicitudes.',
+    generalDescription: 'Obtiene todas las sugerencias/reclamos del condominio. Soporta filtros por estado y tipo.',
+    category: 'Sugerencias',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'status', example: '?status=PENDIENTE', description: 'Estado: PENDIENTE, EN_PROCESO, ATENDIDA, RECHAZADA' },
+      { name: 'type', example: '?type=SUGERENCIA', description: 'Tipo: SUGERENCIA, RECLAMO, OTRO' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/suggestions?userApiKey=TU_API_KEY"`,
+    responseJSON: `[{\n  "id": 1,\n  "type": "SUGERENCIA",\n  "description": "Sugerencia del residente",\n  "status": "PENDIENTE"\n}]`
+  },
+  {
+    method: 'POST',
+    path: '/api/condominiums/{id}/suggestions',
+    title: 'Crear Sugerencia/Reclamo',
+    description: 'Crea una nueva sugerencia, reclamo u otra solicitud.',
+    generalDescription: 'Permite crear una sugerencia o reclamo asociado a un residente. La descripción debe tener al menos 10 caracteres.',
+    category: 'Sugerencias',
+    auth: 'session | userApiKey',
+    fields: [
+      { name: 'residentId', type: 'number', required: true, description: 'ID del residente' },
+      { name: 'type', type: 'string', required: true, description: 'Tipo: SUGERENCIA, RECLAMO, OTRO' },
+      { name: 'description', type: 'string', required: true, description: 'Descripción (mín 10 caracteres)' }
+    ],
+    curl: `curl -X POST "https://crm.pivotsoluciones.com/api/condominiums/1/suggestions?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"residentId": 5, "type": "SUGERENCIA", "description": "Descripción de al menos 10 caracteres"}'`,
+    responseJSON: `{\n  "id": 1,\n  "type": "SUGERENCIA",\n  "status": "PENDIENTE"\n}`
+  },
+  {
+    method: 'PUT',
+    path: '/api/condominiums/{id}/suggestions/{suggestionId}',
+    title: 'Actualizar Sugerencia',
+    description: 'Actualiza el estado y notas de una sugerencia.',
+    generalDescription: 'Permite cambiar el estado de una sugerencia (PENDIENTE, EN_PROCESO, ATENDIDA, RECHAZADA) y agregar notas administrativas.',
+    category: 'Sugerencias',
+    auth: 'session | userApiKey',
+    fields: [
+      { name: 'status', type: 'string', required: false, description: 'Estado: PENDIENTE, EN_PROCESO, ATENDIDA, RECHAZADA' },
+      { name: 'adminNote', type: 'string', required: false, description: 'Nota del administrador' }
+    ],
+    curl: `curl -X PUT "https://crm.pivotsoluciones.com/api/condominiums/1/suggestions/1?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"status": "ATENDIDA", "adminNote": "Solicitud procesada"}'`,
+    responseJSON: `{\n  "id": 1,\n  "status": "ATENDIDA",\n  "adminNote": "Solicitud procesada"\n}`
   }
 ];
 
@@ -547,6 +663,8 @@ const getCategoryIcon = (category: string) => {
     case 'Métricas': return <FileText className="w-4 h-4" />;
     case 'Pagos': return <CreditCard className="w-4 h-4" />;
     case 'Admin': return <FileText className="w-4 h-4" />;
+    case 'Métodos de Pago': return <CreditCard className="w-4 h-4" />;
+    case 'Sugerencias': return <MessageSquare className="w-4 h-4" />;
     default: return <FileText className="w-4 h-4" />;
   }
 };
