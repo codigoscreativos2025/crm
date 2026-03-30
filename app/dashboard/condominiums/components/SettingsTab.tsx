@@ -27,7 +27,7 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
     const [loadingMethods, setLoadingMethods] = useState(false);
     const [newMethodName, setNewMethodName] = useState('');
-    const [newMethodFields, setNewMethodFields] = useState('');
+    const [newMethodFields, setNewMethodFields] = useState<{ key: string; value: string }[]>([]);
     const [savingMethod, setSavingMethod] = useState(false);
 
     useEffect(() => {
@@ -79,16 +79,10 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
 
         setSavingMethod(true);
         try {
-            let fields: any[] = [];
-            if (newMethodFields.trim()) {
-                try {
-                    fields = JSON.parse(newMethodFields);
-                } catch {
-                    alert('El formato de campos debe ser JSON válido');
-                    setSavingMethod(false);
-                    return;
-                }
-            }
+            // Convertir el array de campos a formato JSON
+            const fields = newMethodFields
+                .filter(f => f.key.trim() !== '')
+                .map(f => ({ key: f.key.trim(), label: f.value.trim() }));
 
             const res = await fetch(`/api/condominiums/${condoId}/payment-methods`, {
                 method: 'POST',
@@ -98,7 +92,7 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
 
             if (res.ok) {
                 setNewMethodName('');
-                setNewMethodFields('');
+                setNewMethodFields([]);
                 fetchPaymentMethods();
             } else {
                 const data = await res.json();
@@ -108,6 +102,20 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
             console.error(error);
         }
         setSavingMethod(false);
+    };
+
+    const handleAddField = () => {
+        setNewMethodFields([...newMethodFields, { key: '', value: '' }]);
+    };
+
+    const handleRemoveField = (index: number) => {
+        setNewMethodFields(newMethodFields.filter((_, i) => i !== index));
+    };
+
+    const handleFieldChange = (index: number, field: 'key' | 'value', value: string) => {
+        const newFields = [...newMethodFields];
+        newFields[index][field] = value;
+        setNewMethodFields(newFields);
     };
 
     const handleDeletePaymentMethod = async (methodId: number) => {
@@ -313,15 +321,6 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                                 required
                             />
                         </div>
-                        <div className="flex-1">
-                            <input
-                                type="text"
-                                placeholder='Campos JSON (ej: [{"key":"banco","label":"Banco"}])'
-                                value={newMethodFields}
-                                onChange={(e) => setNewMethodFields(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
-                            />
-                        </div>
                         <button
                             type="submit"
                             disabled={savingMethod}
@@ -330,9 +329,43 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                             {savingMethod ? '...' : <><Plus className="h-4 w-4" /> Agregar</>}
                         </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                        Ejemplo de campos: <code className="bg-gray-100 px-1 rounded">[{'{'}&quot;key&quot;:&quot;banco&quot;,&quot;label&quot;:&quot;Banco&quot;{'}'}]</code>
-                    </p>
+
+                    {/* Campos dinámicos */}
+                    <div className="mt-3 space-y-2">
+                        {newMethodFields.map((field, index) => (
+                            <div key={index} className="flex gap-2 items-center">
+                                <input
+                                    type="text"
+                                    placeholder="Nombre del campo (ej: cedula)"
+                                    value={field.key}
+                                    onChange={(e) => handleFieldChange(index, 'key', e.target.value)}
+                                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
+                                />
+                                <span className="text-gray-400">:</span>
+                                <input
+                                    type="text"
+                                    placeholder="Valor (ej: 31099537)"
+                                    value={field.value}
+                                    onChange={(e) => handleFieldChange(index, 'value', e.target.value)}
+                                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => handleRemoveField(index)}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                        <button
+                            type="button"
+                            onClick={handleAddField}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                        >
+                            <Plus className="h-3 w-3" /> Agregar campo
+                        </button>
+                    </div>
                 </form>
             </div>
 
