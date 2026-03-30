@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Building, Home, Users, ArrowUpCircle, ArrowDownCircle, BarChart3, Plus, Settings, FileText, Clock } from 'lucide-react';
+import { Building, Home, Users, ArrowUpCircle, ArrowDownCircle, BarChart3, Plus, Settings, FileText, Clock, MessageCircle } from 'lucide-react';
 import MetricsTab from './components/MetricsTab';
 import ResidentsTab from './components/ResidentsTab';
 import TransactionsTab from './components/TransactionsTab';
 import LogsTab from './components/LogsTab';
 import InvoicesTab from './components/InvoicesTab';
 import SettingsTab from './components/SettingsTab';
+import SuggestionsTab from './components/SuggestionsTab';
 
 export default function CondominiumsPage() {
     const [loading, setLoading] = useState(true);
@@ -208,6 +209,12 @@ export default function CondominiumsPage() {
                     >
                         <Clock className="h-4 w-4" /> Historial
                     </button>
+                    <button
+                        onClick={() => setActiveTab('suggestions')}
+                        className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'suggestions' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                    >
+                        <MessageCircle className="h-4 w-4" /> Sugerencias
+                    </button>
                 </nav>
             </div>
 
@@ -220,6 +227,7 @@ export default function CondominiumsPage() {
                     {activeTab === 'expenses' && <TransactionsTab condoId={condoData.id} type="EXPENSE" />}
                     {activeTab === 'invoices' && <InvoicesTab condoId={condoData.id} />}
                     {activeTab === 'logs' && <LogsTab condoId={condoData.id} />}
+                    {activeTab === 'suggestions' && <SuggestionsTab condoId={condoData.id} />}
                     {activeTab === 'settings' && <SettingsTab condoId={condoData.id} />}
                 </div>
             </div>

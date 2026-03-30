@@ -19,6 +19,9 @@ interface TransactionItem {
     year?: number | null;
     isFixed?: boolean;
     residentId?: number;
+    rejectionReason?: string | null;
+    reference?: string | null;
+    paymentMethodId?: number | null;
 }
 
 interface FilterState {
@@ -69,6 +72,10 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
 
     // Image modal
     const [imageModal, setImageModal] = useState<{ open: boolean; url: string; type: string }>({ open: false, url: '', type: '' });
+
+    // Reconciliation modal
+    const [reconcileModal, setReconcileModal] = useState<{ open: boolean; transactionId: number | null; residentId: number | null }>({ open: false, transactionId: null, residentId: null });
+    const [rejectModal, setRejectModal] = useState<{ open: boolean; transactionId: number | null; residentId: number | null; reason: string }>({ open: false, transactionId: null, residentId: null, reason: '' });
 
     const getReceiptUrl = (receiptUrl: string | null): string => {
         if (!receiptUrl) return '';
@@ -223,21 +230,59 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
     };
 
     const handleStatusToggle = async (tId: number, currentStatus: string, itemType: 'transaction' | 'payment', residentId?: number) => {
-        try {
-            if (itemType === 'transaction') {
+        // Open confirmation modal instead of directly reconciling
+        if (currentStatus === 'PENDING' && itemType === 'transaction') {
+            setReconcileModal({ open: true, transactionId: tId, residentId: residentId || null });
+        } else {
+            // For reversing reconciliation or other cases, proceed directly
+            try {
                 const newStatus = currentStatus === 'PENDING' ? 'RECONCILED' : 'PENDING';
                 await fetch(`/api/condominiums/${condoId}/transactions/${tId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: newStatus })
                 });
-            } else if (itemType === 'payment' && residentId) {
-                await fetch(`/api/condominiums/${condoId}/residents/${residentId}/payments/${tId}/reconcile`, {
-                    method: 'POST'
-                });
-            }
+                fetchData();
+            } catch (e) {}
+        }
+    };
+
+    const handleReconcile = async () => {
+        if (!reconcileModal.transactionId) return;
+        try {
+            await fetch(`/api/condominiums/${condoId}/transactions/${reconcileModal.transactionId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'RECONCILED' })
+            });
+            setReconcileModal({ open: false, transactionId: null, residentId: null });
             fetchData();
-        } catch (e) {}
+        } catch (e) {
+            alert('Error al conciliar');
+        }
+    };
+
+    const handleOpenReject = (tId: number, residentId?: number) => {
+        setRejectModal({ open: true, transactionId: tId, residentId: residentId || null, reason: '' });
+    };
+
+    const handleReject = async () => {
+        if (!rejectModal.transactionId) return;
+        if (rejectModal.reason.length < 10) {
+            alert('El motivo del rechazo debe tener al menos 10 caracteres');
+            return;
+        }
+        try {
+            await fetch(`/api/condominiums/${condoId}/transactions/${rejectModal.transactionId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'RECONCILED', rejectionReason: rejectModal.reason })
+            });
+            setRejectModal({ open: false, transactionId: null, residentId: null, reason: '' });
+            fetchData();
+        } catch (e) {
+            alert('Error al rechazar');
+        }
     };
 
     const handleDelete = async (tId: number, itemType: 'transaction' | 'payment', residentId?: number) => {
@@ -554,6 +599,53 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                 </div>
             )}
 
+            {/* Modal de Conciliación */}
+            {reconcileModal.open && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+                        <div className="px-6 py-4 border-b bg-emerald-50">
+                            <h2 className="font-bold text-emerald-800">Confirmar Conciliación</h2>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-gray-700 mb-4">¿Está seguro de que desea conciliar este pago?</p>
+                            <p className="text-sm text-gray-500">Esta acción marcará el pago como conciliado.</p>
+                        </div>
+                        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                            <button onClick={() => setReconcileModal({ open: false, transactionId: null, residentId: null })} className="px-4 py-2 border rounded text-gray-700 text-sm hover:bg-gray-100">Cancelar</button>
+                            <button onClick={handleReconcile} className="px-4 py-2 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700">Conciliar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Rechazo */}
+            {rejectModal.open && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+                        <div className="px-6 py-4 border-b bg-red-50">
+                            <h2 className="font-bold text-red-800">Rechazar Pago</h2>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del rechazo (mínimo 10 caracteres)</label>
+                                <textarea 
+                                    value={rejectModal.reason}
+                                    onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
+                                    className="w-full border p-2 rounded outline-none focus:border-indigo-500"
+                                    rows={3}
+                                    placeholder="Ingrese el motivo del rechazo..."
+                                />
+                                <p className="text-xs text-gray-500 mt-1">{rejectModal.reason.length}/10 caracteres</p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                            <button onClick={() => setRejectModal({ open: false, transactionId: null, residentId: null, reason: '' })} className="px-4 py-2 border rounded text-gray-700 text-sm hover:bg-gray-100">Cancelar</button>
+                            <button onClick={handleReject} className="px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700">Rechazar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Listado */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -639,13 +731,27 @@ export default function TransactionsTab({ condoId, type }: { condoId: number, ty
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                    <button 
-                                        onClick={() => handleStatusToggle(t.id, t.status, t.type, t.residentId)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors ${t.status === 'RECONCILED' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}
-                                    >
-                                        {t.status === 'RECONCILED' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                                        {t.status === 'RECONCILED' ? 'Conciliado' : 'Por Conciliar'}
-                                    </button>
+                                    <div className="flex items-center justify-center gap-1">
+                                        <button 
+                                            onClick={() => handleStatusToggle(t.id, t.status, t.type, t.residentId)}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors ${t.status === 'RECONCILED' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}
+                                        >
+                                            {t.status === 'RECONCILED' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                                            {t.status === 'RECONCILED' ? 'Conciliado' : 'Por Conciliar'}
+                                        </button>
+                                        {t.status === 'PENDING' && (
+                                            <button 
+                                                onClick={() => handleOpenReject(t.id, t.residentId)}
+                                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold cursor-pointer bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
+                                                title="Rechazar pago"
+                                            >
+                                                <XCircle className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    {t.rejectionReason && (
+                                        <p className="text-xs text-red-600 mt-1" title={`Motivo: ${t.rejectionReason}`}>Rechazado</p>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-right text-sm">
                                     <button onClick={() => handleDelete(t.id, t.type, t.residentId)} className="text-gray-400 hover:text-red-600 transition-colors p-1">

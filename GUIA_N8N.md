@@ -169,7 +169,91 @@ curl -X GET "https://crm.tudominio.com/api/condominiums/1/metrics/report?userApi
 
 ---
 
-## 7. Resumen de Conexión
+## 7. Métodos de Pago
+
+### Listar Métodos de Pago
+**GET** `/api/condominiums/{id}/payment-methods?userApiKey=TU_API_KEY`
+
+### Crear Método de Pago
+**POST** `/api/condominiums/{id}/payment-methods?userApiKey=TU_API_KEY`
+
+```json
+{
+  "name": "Pago Móvil",
+  "fields": [{"key": "cedula", "label": "Cédula"}, {"key": "banco", "label": "Banco"}]
+}
+```
+
+### Actualizar Método de Pago
+**PUT** `/api/condominiums/{id}/payment-methods/{methodId}?userApiKey=TU_API_KEY`
+
+### Eliminar Método de Pago
+**DELETE** `/api/condominiums/{id}/payment-methods/{methodId}?userApiKey=TU_API_KEY`
+
+---
+
+## 8. Registrar Transacción con Comprobante
+
+### Campos obligatorios para INGRESOS y EGRESOS:
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| type | string | "INCOME" o "EXPENSE" |
+| category | string | Categoría de la transacción |
+| amount | number | Monto |
+| receiptUrl | string | URL del comprobante (obligatorio) |
+| paymentMethodId | number | ID del método de pago (obligatorio) |
+| reference | string | Referencia del pago (mín 4 caracteres) |
+| date | string | Fecha (YYYY-MM-DD) |
+
+### Ejemplo:
+```bash
+curl -X POST "https://crm.tudominio.com/api/condominiums/1/transactions?userApiKey=TU_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "INCOME",
+    "category": "Cuota Mensual",
+    "amount": 1500,
+    "receiptUrl": "/api/files/comprobante123.jpg",
+    "paymentMethodId": 1,
+    "reference": "12345678",
+    "date": "2026-03-15"
+  }'
+```
+
+---
+
+## 9. Sugerencias, Reclamos y Otros
+
+### Crear Sugerencia/Reclamo
+**POST** `/api/condominiums/{id}/suggestions?userApiKey=TU_API_KEY`
+
+```json
+{
+  "residentId": 5,
+  "type": "SUGERENCIA",
+  "description": "Descripción de al menos 10 caracteres"
+}
+```
+
+### Listar Sugerencias
+**GET** `/api/condominiums/{id}/suggestions?userApiKey=TU_API_KEY&status=PENDIENTE&type=SUGERENCIA`
+
+### Actualizar Estado
+**PUT** `/api/condominiums/{id}/suggestions/{id}?userApiKey=TU_API_KEY`
+
+```json
+{
+  "status": "ATENDIDA",
+  "adminNote": "Nota opcional del administrador"
+}
+```
+
+**Estados válidos:** PENDIENTE, EN_PROCESO, ATENDIDA, RECHAZADA
+**Tipos válidos:** SUGERENCIA, RECLAMO, OTRO
+
+---
+
+## 10. Resumen de Conexión
 
 *   **Meta** -> (Webhook) -> **n8n** -> (API Key) -> **CRM**
 *   **CRM** -> (Webhook) -> **n8n** -> (Bearer Token) -> **Meta**
