@@ -75,7 +75,12 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
 
     const handleAddPaymentMethod = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMethodName.trim()) return;
+        
+        const methodName = newMethodName.trim();
+        if (!methodName) {
+            alert('El nombre del método de pago es requerido');
+            return;
+        }
 
         setSavingMethod(true);
         try {
@@ -84,22 +89,24 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                 .filter(f => f.key.trim() !== '')
                 .map(f => ({ key: f.key.trim(), label: f.value.trim() }));
 
-            const res = await fetch(`/api/condominiums/${condoId}/payment-methods`, {
+            const response = await fetch(`/api/condominiums/${condoId}/payment-methods`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newMethodName.trim(), fields })
+                body: JSON.stringify({ name: methodName, fields })
             });
 
-            if (res.ok) {
+            const data = await response.json();
+            
+            if (response.ok) {
                 setNewMethodName('');
                 setNewMethodFields([]);
                 fetchPaymentMethods();
             } else {
-                const data = await res.json();
                 alert(data.error || 'Error al crear método de pago');
             }
         } catch (error) {
-            console.error(error);
+            console.error('Error:', error);
+            alert('Error al crear método de pago');
         }
         setSavingMethod(false);
     };
