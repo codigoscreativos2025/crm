@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Info } from 'lucide-react';
+import { Plus, Trash2, Save, Info, CreditCard } from 'lucide-react';
+
+interface PaymentMethod {
+    id: number;
+    name: string;
+    fields: string;
+}
 
 export default function SettingsTab({ condoId }: { condoId: number }) {
     const [loading, setLoading] = useState(true);
@@ -17,8 +23,16 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
     const [incomeCategories, setIncomeCategories] = useState<string[]>(['Pago de Mantenimiento', 'Cuota Extraordinaria', 'Otro']);
     const [expenseCategories, setExpenseCategories] = useState<string[]>(['Agua', 'Luz', 'Servicios', 'Limpieza', 'Seguridad', 'Mantenimiento Elevador', 'Otro']);
 
+    // Payment methods state
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+    const [loadingMethods, setLoadingMethods] = useState(false);
+    const [newMethodName, setNewMethodName] = useState('');
+    const [newMethodFields, setNewMethodFields] = useState('');
+    const [savingMethod, setSavingMethod] = useState(false);
+
     useEffect(() => {
         fetchSettings();
+        fetchPaymentMethods();
     }, [condoId]);
 
     const fetchSettings = async () => {
@@ -44,6 +58,75 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
             console.error(error);
         }
         setLoading(false);
+    };
+
+    const fetchPaymentMethods = async () => {
+        setLoadingMethods(true);
+        try {
+            const res = await fetch(`/api/condominiums/${condoId}/payment-methods`);
+            if (res.ok) {
+                setPaymentMethods(await res.json());
+            }
+        } catch (error) {
+            console.error(error);
+        }
+        setLoadingMethods(false);
+    };
+
+    const handleAddPaymentMethod = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMethodName.trim()) return;
+
+        setSavingMethod(true);
+        try {
+            let fields: any[] = [];
+            if (newMethodFields.trim()) {
+                try {
+                    fields = JSON.parse(newMethodFields);
+                } catch {
+                    alert('El formato de campos debe ser JSON válido');
+                    setSavingMethod(false);
+                    return;
+                }
+            }
+
+            const res = await fetch(`/api/condominiums/${condoId}/payment-methods`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newMethodName.trim(), fields })
+            });
+
+            if (res.ok) {
+                setNewMethodName('');
+                setNewMethodFields('');
+                fetchPaymentMethods();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Error al crear método de pago');
+            }
+        } catch (error) {
+            console.error(error);
+        }
+        setSavingMethod(false);
+    };
+
+    const handleDeletePaymentMethod = async (methodId: number) => {
+        if (!confirm('¿Eliminar este método de pago?')) return;
+
+        try {
+            const res = await fetch(`/api/condominiums/${condoId}/payment-methods/${methodId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                fetchPaymentMethods();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'No se pudo eliminar');
+            }
+        } catch (error) {
+            console.error(error);
+        }
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -178,6 +261,79 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                         "Ej: Limpieza, Luz..."
                     )}
                 </div>
+            </div>
+
+            {/* Métodos de Pago */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <CreditCard className="h-5 w-5 text-indigo-600" />
+                    <h3 className="font-bold text-gray-800">Métodos de Pago</h3>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">Gestiona los métodos de pago disponibles para registrar transacciones.</p>
+
+                {/* Lista de métodos existentes */}
+                <div className="space-y-2 mb-4">
+                    {loadingMethods ? (
+                        <div className="text-center py-4 text-gray-500">Cargando...</div>
+                    ) : paymentMethods.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">No hay métodos de pago configurados</div>
+                    ) : (
+                        paymentMethods.map((method) => (
+                            <div key={method.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div>
+                                    <span className="font-medium text-gray-800">{method.name}</span>
+                                    {method.fields && method.fields !== '[]' && (
+                                        <span className="ml-2 text-xs text-gray-500">
+                                            ({JSON.parse(method.fields).length} campos)
+                                        </span>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeletePaymentMethod(method.id)}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Formulario para agregar */}
+                <form onSubmit={handleAddPaymentMethod} className="border-t pt-4">
+                    <div className="flex flex-col md:flex-row gap-3">
+                        <div className="flex-1">
+                            <input
+                                type="text"
+                                placeholder="Nombre del método (ej: Transferencia, Pago Móvil)"
+                                value={newMethodName}
+                                onChange={(e) => setNewMethodName(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
+                                required
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <input
+                                type="text"
+                                placeholder='Campos JSON (ej: [{"key":"banco","label":"Banco"}])'
+                                value={newMethodFields}
+                                onChange={(e) => setNewMethodFields(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={savingMethod}
+                            className={`flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors ${savingMethod ? 'opacity-70' : ''}`}
+                        >
+                            {savingMethod ? '...' : <><Plus className="h-4 w-4" /> Agregar</>}
+                        </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                        Ejemplo de campos: <code className="bg-gray-100 px-1 rounded">[{'{'}&quot;key&quot;:&quot;banco&quot;,&quot;label&quot;:&quot;Banco&quot;{'}'}]</code>
+                    </p>
+                </form>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
