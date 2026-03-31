@@ -449,7 +449,20 @@ const endpoints: Endpoint[] = [
     filters: [
       { name: 'year', example: '?year=2026', description: 'Filtrar por año' }
     ],
-    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/payments/history?userApiKey=TU_API_KEY&year=2026" \\\n  -H "Accept: application/pdf"`,
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/payments/history?userApiKey=TU_API_KEY&year=2026" \\
+  -H "Accept: application/pdf"`,
+    responseJSON: `// Archivo binario PDF (inline)`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/residents/{residentId}/payments/{paymentId}/receipt/pdf',
+    title: 'Descargar Recibo de Pago PDF',
+    description: 'Genera un PDF con el recibo de un pago específico.',
+    generalDescription: 'Genera un documento PDF con el comprobante de pago de una transacción específica. Incluye: datos del residente, monto, método de pago, referencia, fecha y período pagado.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/residents/5/payments/123/receipt/pdf?userApiKey=TU_API_KEY" \\
+  -H "Accept: application/pdf"`,
     responseJSON: `// Archivo binario PDF (inline)`
   },
   {
@@ -680,6 +693,16 @@ export default function ApiDocsPage() {
     'Pagos': true,
     'Admin': true
   });
+  
+  const [methodsOpen, setMethodsOpen] = useState<{ [key: string]: boolean }>({});
+
+  const handleSidebarClick = (originalIndex: number) => {
+    const element = document.getElementById(`ep-${originalIndex}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveSection(`ep-${originalIndex}`);
+    }
+  };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -756,33 +779,45 @@ export default function ApiDocsPage() {
           {icon}
         </button>
         {categoriesOpen[title] && (
-          <div className="space-y-3 pl-2">
+          <div className="space-y-2 pl-2">
             {methods.map(method => {
               if (!grouped[method] || grouped[method].length === 0) return null;
+              
+              const methodKey = `${title}-${method}`;
+              const isMethodOpen = methodsOpen[methodKey] !== false;
+              
               return (
                 <div key={method}>
-                  <div className="flex items-center gap-2 mb-2">
+                  <button 
+                    onClick={() => setMethodsOpen(prev => ({ ...prev, [methodKey]: !prev[methodKey] }))}
+                    className="flex items-center gap-2 mb-1 w-full text-left hover:bg-gray-100 rounded py-1"
+                  >
+                    <svg className={`w-3 h-3 text-gray-400 transition-transform ${isMethodOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
+                    </svg>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getMethodColor(method)} text-white`}>
                       {method}
                     </span>
                     <span className="text-xs text-gray-400">({grouped[method].length})</span>
-                  </div>
-                  <ul className="space-y-1 pl-6 border-l border-gray-200 ml-1">
-                    {grouped[method].map((ep) => {
-                      const originalIndex = endpoints.indexOf(ep);
-                      const isActive = activeSection === `ep-${originalIndex}`;
-                      return (
-                        <li key={originalIndex}>
-                          <button 
-                            onClick={() => setSelectedEndpoint(originalIndex)}
-                            className={`text-sm block truncate py-1.5 px-2 rounded transition-all border-l-2 w-full text-left ${isActive ? 'bg-indigo-50 text-indigo-700 border-indigo-500 font-medium' : 'text-gray-600 hover:text-gray-900 border-transparent hover:bg-gray-100'}`}
-                          >
-                            {ep.title}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  </button>
+                  {isMethodOpen && (
+                    <ul className="space-y-1 pl-6 border-l border-gray-200 ml-1.5">
+                      {grouped[method].map((ep) => {
+                        const originalIndex = endpoints.indexOf(ep);
+                        const isActive = activeSection === `ep-${originalIndex}`;
+                        return (
+                          <li key={originalIndex}>
+                            <button 
+                              onClick={() => handleSidebarClick(originalIndex)}
+                              className={`text-sm block truncate py-1.5 px-2 rounded transition-all border-l-2 w-full text-left ${isActive ? 'bg-indigo-50 text-indigo-700 border-indigo-500 font-medium' : 'text-gray-600 hover:text-gray-900 border-transparent hover:bg-gray-100'}`}
+                            >
+                              {ep.title}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               );
             })}
