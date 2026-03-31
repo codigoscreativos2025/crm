@@ -1,14 +1,17 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import prisma from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     trustHost: true,
     secret: process.env.AUTH_SECRET,
     providers: [
+        Google({
+            clientId: process.env.GOOGLE_CLIENT_ID || "",
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+        }),
         Credentials({
-            // You can specify which fields should be submitted, by adding keys to the `credentials` object.
-            // e.g. domain, username, password, 2FA token, etc.
             credentials: {
                 email: {},
                 password: {},
@@ -20,7 +23,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     return null;
                 }
 
-                // specific logic for authorize
                 try {
                     user = await prisma.user.findFirst({
                         where: {
@@ -32,11 +34,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     })
 
                     if (!user) {
-                        // No user found, so this is their first attempt to login
                         return null;
                     }
 
-                    // Check password (PLAINTEXT FOR DEMO - USE BCRYPT IN PROD)
                     if (user.password !== credentials.password) {
                         return null;
                     }
@@ -55,10 +55,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         }
                     }
 
-                    // Return user object with their profile data
                     return {
-                        ...user,
                         id: user.id.toString(),
+                        name: user.username || user.email || "",
+                        email: user.email,
+                        role: user.role,
+                        plan: (user as any).plan || "FREE",
                     };
                 } catch (error: any) {
                     console.error("Auth error:", error.message);
@@ -73,21 +75,82 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     callbacks: {
         async session({ session, token }) {
             if (session.user && token.sub) {
-                // Add user ID to session
                 // @ts-ignore
                 session.user.id = token.sub;
                 // @ts-ignore
-                session.user.role = token.role;
+                session.user.role = token.role || "USER";
+                // @ts-ignore
+                session.user.plan = token.plan || "FREE";
             }
             return session;
         },
-        async jwt({ token, user }) {
+        async jwt({ token, user, account }) {
             if (user) {
                 token.id = user.id;
                 // @ts-ignore
-                token.role = user.role;
+                token.role = user.role || "USER";
+                // @ts-ignore
+                token.plan = user.plan || "FREE";
             }
+            
+            // If Google login, check/create user in database
+            if (account?.provider === "google" && account.providerAccountId) {
+                // @ts-ignore
+                const googleId = account.providerAccountId;
+                
+                let dbUser = await prisma.user.findFirst({
+                    where: {
+                        // @ts-ignore
+                        providerId: googleId
+                    } as any
+                });
+
+                const userEmail = user?.email || token.email;
+                
+                if (!dbUser && userEmail) {
+                    const apiKey = `key_${Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)}`;
+                    
+                    dbUser = await prisma.user.create({
+                        data: {
+                            email: userEmail,
+                            password: Math.random().toString(36).substring(2),
+                            apiKey,
+                            provider: "google",
+                            providerId: googleId,
+                            plan: "FREE",
+                        } as any
+                    });
+
+                    await prisma.funnel.create({
+                        data: {
+                            name: "Ventas por Defecto",
+                            userId: dbUser.id,
+                            stages: {
+                                create: [
+                                    { name: "Nuevo Lead", order: 1 },
+                                    { name: "Contactado", order: 2 },
+                                    { name: "Interesado", order: 3 },
+                                    { name: "Cerrado", order: 4 },
+                                ]
+                            }
+                        }
+                    });
+                }
+
+                if (dbUser) {
+                    token.id = dbUser.id;
+                    token.role = dbUser.role;
+                    token.plan = (dbUser as any).plan || "FREE";
+                }
+            }
+
             return token;
+        },
+        async signIn({ user, account }) {
+            if (account?.provider === "google") {
+                return true;
+            }
+            return true;
         }
     }
 });

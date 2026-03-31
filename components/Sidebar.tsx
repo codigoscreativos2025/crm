@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { UserCircle, LogOut, Filter, X, Settings, BarChart2, MessageSquareQuote, Building } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import ThemeToggle from './ThemeToggle';
+import NotificationBell from './NotificationBell';
 
 interface Stage {
     id: number;
@@ -181,7 +182,9 @@ export default function Sidebar() {
                         </Link>
                     )}
                 </div>
-                <div className="flex gap-4 text-gray-500">
+                <div className="flex items-center gap-3 text-gray-500">
+                    <ThemeToggle />
+                    <NotificationBell />
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         title="Filtrar"
@@ -189,7 +192,7 @@ export default function Sidebar() {
                     >
                         <Filter className="h-5 w-5" />
                     </button>
-                    <button onClick={handleLogout} title="Cerrar Sesión" className="hover:text-red-500">
+                    <button onClick={handleLogout} title="Cerrar Sesión" className="hover:text-red-500 p-2">
                         <LogOut className="h-5 w-5" />
                     </button>
                 </div>
