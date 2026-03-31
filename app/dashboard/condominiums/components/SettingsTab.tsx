@@ -316,7 +316,7 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                 </div>
 
                 {/* Formulario para agregar */}
-                <form onSubmit={handleAddPaymentMethod} className="border-t pt-4">
+                <div className="border-t pt-4">
                     <div className="flex flex-col md:flex-row gap-3">
                         <div className="flex-1">
                             <input
@@ -325,11 +325,11 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                                 value={newMethodName}
                                 onChange={(e) => setNewMethodName(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
-                                required
                             />
                         </div>
                         <button
-                            type="submit"
+                            type="button"
+                            onClick={handleAddPaymentMethod}
                             disabled={savingMethod}
                             className={`flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors ${savingMethod ? 'opacity-70' : ''}`}
                         >
@@ -373,7 +373,7 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                             <Plus className="h-3 w-3" /> Agregar campo
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
