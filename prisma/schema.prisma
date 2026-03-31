@@ -16,6 +16,15 @@ model User {
   apiKey   String @unique
   role     String @default("USER") // USER, ADMIN
 
+  // OAuth
+  provider      String?   // "credentials" | "google"
+  providerId    String?   // Google ID
+
+  // Subscription
+  plan          String   @default("FREE") // FREE, FREELANCE, PRO, EMBAJADOR
+  planStartedAt DateTime?
+  planExpiresAt DateTime?
+
   // Multi-tenancy Support
   parentId Int?
   parent   User?  @relation("UserToCompany", fields: [parentId], references: [id])
@@ -46,6 +55,7 @@ model User {
   messageTemplates MessageTemplate[]
   tags             Tag[]
   condominium      Condominium? // 1:1 Relation
+  notifications    Notification[]
 }
 
 model AdminMessageTemplate {
@@ -287,4 +297,18 @@ model ResidentSuggestion {
   adminNote   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // NEW_USER, PAYMENT, SYSTEM
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  data      String?  // JSON adicional
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
