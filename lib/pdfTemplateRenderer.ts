@@ -272,7 +272,8 @@ export async function renderTemplateToPdf(
               ...hexToRgb(section.styles.headerColor || '#ffffff')
             );
           } else {
-            doc.setTextColor(hexToRgb(section.styles.color || '#000000'));
+            const colorRgb = hexToRgb(section.styles.color || '#000000');
+            doc.setTextColor(colorRgb[0], colorRgb[1], colorRgb[2]);
           }
 
           doc.setFont(section.styles.font || 'helvetica', field.bold ? 'bold' : 'normal');
@@ -297,7 +298,8 @@ export async function renderTemplateToPdf(
 
         doc.setFont(section.styles.font || 'helvetica', 'italic');
         doc.setFontSize(section.styles.fontSize || 10);
-        doc.setTextColor(hexToRgb(section.styles.color || '#6b7280'));
+        const notesColor = hexToRgb(section.styles.color || '#6b7280');
+        doc.setTextColor(notesColor[0], notesColor[1], notesColor[2]);
 
         const lines = doc.splitTextToSize(text, contentWidth);
         doc.text(lines, marginLeft, currentY);
@@ -310,7 +312,8 @@ export async function renderTemplateToPdf(
 
         doc.setFont(section.styles.font || 'helvetica', 'normal');
         doc.setFontSize(section.styles.fontSize || 9);
-        doc.setTextColor(hexToRgb(section.styles.color || '#6b7280'));
+        const footerColor = hexToRgb(section.styles.color || '#6b7280');
+        doc.setTextColor(footerColor[0], footerColor[1], footerColor[2]);
 
         const footerY = pageHeight - marginBottom + 5;
         const align = section.styles.align || 'center';
@@ -348,7 +351,8 @@ export async function renderTemplateToPdf(
       case 'DIVIDER': {
         checkPageBreak(5);
         
-        doc.setDrawColor(hexToRgb(section.styles.lineColor || '#e5e7eb'));
+        const lineColorRgb = hexToRgb(section.styles.lineColor || '#e5e7eb');
+        doc.setDrawColor(lineColorRgb[0], lineColorRgb[1], lineColorRgb[2]);
         doc.setLineWidth((section.styles.lineThickness || 1) / 10);
         
         if (section.styles.lineStyle === 'dashed') {
