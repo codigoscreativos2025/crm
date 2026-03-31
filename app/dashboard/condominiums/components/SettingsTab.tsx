@@ -6,7 +6,7 @@ import { Plus, Trash2, Save, Info, CreditCard } from 'lucide-react';
 interface PaymentMethod {
     id: number;
     name: string;
-    fields: string;
+    fields: string | Record<string, string>;
 }
 
 export default function SettingsTab({ condoId }: { condoId: number }) {
@@ -293,13 +293,36 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                     ) : paymentMethods.length === 0 ? (
                         <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">No hay métodos de pago configurados</div>
                     ) : (
-                        paymentMethods.map((method) => (
+                        paymentMethods.map((method) => {
+                            // Handle both string and object formats
+                            let fieldsObj: Record<string, string> = {};
+                            let fieldCount = 0;
+                            
+                            if (typeof method.fields === 'string') {
+                                try {
+                                    const parsed = JSON.parse(method.fields);
+                                    if (Array.isArray(parsed)) {
+                                        parsed.forEach((f: { key: string; label: string }) => {
+                                            if (f.key) fieldsObj[f.key] = f.label || '';
+                                        });
+                                        fieldCount = parsed.length;
+                                    } else {
+                                        fieldsObj = parsed;
+                                        fieldCount = Object.keys(parsed).length;
+                                    }
+                                } catch (e) {}
+                            } else if (typeof method.fields === 'object' && method.fields !== null) {
+                                fieldsObj = method.fields as Record<string, string>;
+                                fieldCount = Object.keys(fieldsObj).length;
+                            }
+                            
+                            return (
                             <div key={method.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                 <div>
                                     <span className="font-medium text-gray-800">{method.name}</span>
-                                    {method.fields && method.fields !== '[]' && (
+                                    {fieldCount > 0 && (
                                         <span className="ml-2 text-xs text-gray-500">
-                                            ({JSON.parse(method.fields).length} campos)
+                                            ({fieldCount} campos)
                                         </span>
                                     )}
                                 </div>
@@ -311,7 +334,8 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
                                     <Trash2 className="h-4 w-4" />
                                 </button>
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
 

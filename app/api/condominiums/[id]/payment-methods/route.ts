@@ -24,7 +24,30 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             orderBy: { createdAt: 'asc' }
         });
 
-        return NextResponse.json(methods);
+        // Convert fields to simpler format for API
+        const formattedMethods = methods.map(m => {
+            let fieldsObj: Record<string, string> = {};
+            try {
+                const parsed = JSON.parse(m.fields);
+                // Convert from [{"key":"cedula","label":"31099537"}] to {"cedula":"31099537"}
+                if (Array.isArray(parsed)) {
+                    parsed.forEach((f: { key: string; label: string }) => {
+                        if (f.key) fieldsObj[f.key] = f.label || '';
+                    });
+                }
+            } catch (e) {
+                // If not valid JSON, try parsing as direct object
+                try {
+                    fieldsObj = JSON.parse(m.fields);
+                } catch (e2) {}
+            }
+            return {
+                ...m,
+                fields: fieldsObj
+            };
+        });
+
+        return NextResponse.json(formattedMethods);
 
     } catch (e) {
         console.error("Error fetching payment methods:", e);
