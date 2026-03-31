@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Info, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Save, Info, CreditCard, FileText } from 'lucide-react';
+import PDFTemplateEditor from './PDFTemplateEditor';
 
 interface PaymentMethod {
     id: number;
@@ -29,6 +30,9 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
     const [newMethodName, setNewMethodName] = useState('');
     const [newMethodFields, setNewMethodFields] = useState<{ key: string; value: string }[]>([]);
     const [savingMethod, setSavingMethod] = useState(false);
+
+    // PDF Template editor state
+    const [showTemplateEditor, setShowTemplateEditor] = useState(false);
 
     useEffect(() => {
         fetchSettings();
@@ -401,11 +405,30 @@ export default function SettingsTab({ condoId }: { condoId: number }) {
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
+                <button 
+                    type="button" 
+                    onClick={() => setShowTemplateEditor(true)}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-lg shadow-sm transition-all"
+                >
+                    <FileText className="h-5 w-5" />
+                    Editar Plantillas PDF
+                </button>
                 <button type="submit" disabled={saving} className={`flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors ${saving ? 'opacity-70 pointer-events-none' : ''}`}>
                     {saving ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : <Save className="h-5 w-5" />}
                     Guardar Cambios
                 </button>
             </div>
+
+            {showTemplateEditor && (
+                <div className="fixed inset-0 bg-black/50 z-50 overflow-auto">
+                    <div className="min-h-screen p-4">
+                        <PDFTemplateEditor 
+                            condoId={condoId} 
+                            onClose={() => setShowTemplateEditor(false)} 
+                        />
+                    </div>
+                </div>
+            )}
         </form>
     );
 }

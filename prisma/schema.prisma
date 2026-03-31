@@ -144,7 +144,8 @@ model Condominium {
   incomeCategories   String?
   expenseCategories   String?
   fixedCosts          String?    // JSON: [{"name":"Vigilancia","amount":5000}]
-  invoiceTemplate     String?    // JSON: PDF layout config (fonts, sizes, titles, item order)
+  invoiceTemplates    String?    // JSON: {invoice: {...}, paymentReceipt: {...}, ...} - Multiple document templates
+  invoiceTemplate     String?    // Legacy: Single template (deprecated, use invoiceTemplates)
   invoiceDay          Int        @default(1)
   paymentGraceDays    Int        @default(15) // Días de gracia para pagar
 
