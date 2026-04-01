@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateCondoRequest } from "@/lib/condoAuth";
 import { getTemplateForDocument, renderTemplateToPdf, getFilenameFromTemplate } from "@/lib/pdfTemplateRenderer";
+import { getDefaultTemplate } from "@/lib/pdfTemplateTypes";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     const auth = await authenticateCondoRequest(req);
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             payments
         };
 
-        const pdfBuffer = await renderTemplateToPdf(template!, renderData);
+        const pdfBuffer = await renderTemplateToPdf(template || getDefaultTemplate('pendingPayments'), renderData);
 
         const filename = getFilenameFromTemplate(template, 'Pagos_Por_Conciliar');
 

@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateCondoRequest } from "@/lib/condoAuth";
 import { getTemplateForDocument, renderTemplateToPdf, getFilenameFromTemplate } from "@/lib/pdfTemplateRenderer";
+import { getDefaultTemplate } from "@/lib/pdfTemplateTypes";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     const auth = await authenticateCondoRequest(req);
@@ -40,6 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
         if (statusFilter) {
             whereClause.status = statusFilter;
+        } else {
+            whereClause.status = 'PENDIENTE';
         }
 
         const suggestions = await prisma.residentSuggestion.findMany({
@@ -82,7 +85,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             suggestions: suggestionsData
         };
 
-        const pdfBuffer = await renderTemplateToPdf(template!, renderData);
+        const pdfBuffer = await renderTemplateToPdf(template || getDefaultTemplate('suggestionsExport'), renderData);
 
         const filename = getFilenameFromTemplate(template, 'Reclamos_y_Sugerencias');
 
