@@ -210,6 +210,8 @@ export async function renderTemplateToPdf(
               ? hexToRgb(section.styles.borderColor)
               : [200, 200, 200],
             lineWidth: (section.styles.borderWidth || 0.5) / 10,
+            overflow: 'linebreak',
+            minCellHeight: 10,
           },
           columnStyles: columns.reduce((acc, col, idx) => {
             acc[idx] = {

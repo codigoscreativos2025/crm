@@ -1171,7 +1171,7 @@ export function getDefaultTemplate(documentType: DocumentType): PdfTemplate {
               { key: 'date', label: 'FECHA', width: 25, align: 'left', format: 'date' },
               { key: 'type', label: 'TIPO', width: 25, align: 'center' },
               { key: 'resident', label: 'RESIDENTE', width: 'auto', align: 'left' },
-              { key: 'description', label: 'DESCRIPCIÓN', width: 'auto', align: 'left' },
+              { key: 'description', label: 'DESCRIPCIÓN', width: 60, align: 'left' },
               { key: 'status', label: 'ESTADO', width: 25, align: 'center' },
             ],
             styles: {

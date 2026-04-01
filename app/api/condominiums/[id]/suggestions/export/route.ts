@@ -62,7 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             date: new Date(s.createdAt).toLocaleDateString('es-MX'),
             type: s.type === 'SUGERENCIA' ? 'Sugerencia' : s.type === 'RECLAMO' ? 'Reclamo' : 'Otro',
             resident: s.resident?.name || 'N/A',
-            description: s.description.length > 50 ? s.description.substring(0, 50) + '...' : s.description,
+            description: s.description,
             status: s.status === 'PENDIENTE' ? 'Pendiente' : 
                    s.status === 'EN_PROCESO' ? 'En Proceso' : 
                    s.status === 'ATENDIDA' ? 'Atendida' : 'Rechazada'
