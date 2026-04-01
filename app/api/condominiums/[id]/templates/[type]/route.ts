@@ -27,6 +27,8 @@ export async function GET(
     "residentExport",
     "transactionExport",
     "financialReport",
+    "pendingPayments",
+    "suggestionsExport",
   ];
 
   if (!validTypes.includes(docType)) {
@@ -99,6 +101,8 @@ export async function PUT(
     "residentExport",
     "transactionExport",
     "financialReport",
+    "pendingPayments",
+    "suggestionsExport",
   ];
 
   if (!validTypes.includes(docType)) {

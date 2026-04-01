@@ -5,7 +5,9 @@ export type DocumentType =
   | 'paymentHistory' 
   | 'residentExport' 
   | 'transactionExport' 
-  | 'financialReport';
+  | 'financialReport'
+  | 'pendingPayments'
+  | 'suggestionsExport';
 
 export type SectionType = 
   | 'HEADER' 
@@ -141,6 +143,7 @@ export interface PdfTemplate {
   documentType: DocumentType;
   page: PageConfig;
   sections: PdfSection[];
+  filename?: string;
 }
 
 export interface AllTemplates {
@@ -151,6 +154,8 @@ export interface AllTemplates {
   residentExport: PdfTemplate;
   transactionExport: PdfTemplate;
   financialReport: PdfTemplate;
+  pendingPayments: PdfTemplate;
+  suggestionsExport: PdfTemplate;
 }
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
@@ -161,6 +166,8 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   residentExport: 'Exportación de Residentes',
   transactionExport: 'Exportación de Transacciones',
   financialReport: 'Reporte Financiero',
+  pendingPayments: 'Pagos por Conciliar',
+  suggestionsExport: 'Reclamos y Sugerencias',
 };
 
 export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
@@ -994,6 +1001,196 @@ export function getDefaultTemplate(documentType: DocumentType): PdfTemplate {
             label: 'Pie de Página',
             visible: true,
             order: 5,
+            content: {
+              text: 'Documento generado por PIVOT CRM',
+              showPageNumbers: true,
+            },
+            styles: {
+              font: 'Helvetica',
+              fontSize: 9,
+              color: '#6b7280',
+              align: 'center',
+            },
+          },
+        ],
+      };
+
+    case 'pendingPayments':
+      return {
+        ...baseTemplate,
+        sections: [
+          {
+            id: 'header',
+            type: 'HEADER',
+            label: 'Encabezado',
+            visible: true,
+            order: 1,
+            content: {
+              title: 'PAGOS POR CONCILIAR',
+              subtitle: '{{condominium.name}}',
+              showDate: true,
+            },
+            styles: {
+              font: 'Helvetica',
+              titleSize: 18,
+              titleColor: '#000000',
+              titleAlign: 'center',
+              subtitleSize: 12,
+              subtitleColor: '#333333',
+            },
+          },
+          {
+            id: 'summary',
+            type: 'SUMMARY_BOX',
+            label: 'Resumen',
+            visible: true,
+            order: 2,
+            content: {
+              fields: [
+                { label: 'Total Pagos', value: '{{totals.count}}', bold: true },
+                { label: 'Monto Total', value: '{{totals.amount}}', bold: true, highlight: true },
+              ],
+              columns: 2,
+              columnWidth: 'equal',
+            },
+            styles: {
+              backgroundColor: '#fef3c7',
+              borderColor: '#f59e0b',
+              borderWidth: 2,
+              padding: 12,
+              fontSize: 12,
+            },
+          },
+          {
+            id: 'payments_table',
+            type: 'TABLE',
+            label: 'Pagos Pendientes',
+            visible: true,
+            order: 3,
+            content: {
+              title: 'PAGOS PENDIENTES',
+              dataSource: 'payments',
+            },
+            columns: [
+              { key: 'date', label: 'FECHA', width: 25, align: 'left', format: 'date' },
+              { key: 'resident', label: 'RESIDENTE', width: 'auto', align: 'left' },
+              { key: 'unit', label: 'UNIDAD', width: 25, align: 'left' },
+              { key: 'reference', label: 'REFERENCIA', width: 30, align: 'left' },
+              { key: 'amount', label: 'IMPORTE', width: 30, align: 'right', format: 'currency' },
+            ],
+            styles: {
+              headerBackground: '#f59e0b',
+              headerColor: '#ffffff',
+              headerFont: 'Helvetica',
+              headerSize: 10,
+              bodyFont: 'Helvetica',
+              bodySize: 9,
+              borderWidth: 0.5,
+              alternatingRows: true,
+            },
+          },
+          {
+            id: 'footer',
+            type: 'FOOTER',
+            label: 'Pie de Página',
+            visible: true,
+            order: 4,
+            content: {
+              text: 'Documento generado por PIVOT CRM',
+              showPageNumbers: true,
+            },
+            styles: {
+              font: 'Helvetica',
+              fontSize: 9,
+              color: '#6b7280',
+              align: 'center',
+            },
+          },
+        ],
+      };
+
+    case 'suggestionsExport':
+      return {
+        ...baseTemplate,
+        sections: [
+          {
+            id: 'header',
+            type: 'HEADER',
+            label: 'Encabezado',
+            visible: true,
+            order: 1,
+            content: {
+              title: 'RECLAMOS Y SUGERENCIAS',
+              subtitle: '{{condominium.name}}',
+              showDate: true,
+            },
+            styles: {
+              font: 'Helvetica',
+              titleSize: 18,
+              titleColor: '#000000',
+              titleAlign: 'center',
+              subtitleSize: 12,
+              subtitleColor: '#333333',
+            },
+          },
+          {
+            id: 'summary',
+            type: 'INFO_BOX',
+            label: 'Resumen',
+            visible: true,
+            order: 2,
+            content: {
+              fields: [
+                { label: 'Total', value: '{{totals.count}}', bold: true },
+                { label: 'Sugerencias', value: '{{totals.suggestions}}', bold: false },
+                { label: 'Reclamos', value: '{{totals.claims}}', bold: false },
+                { label: 'Pendientes', value: '{{totals.pending}}', bold: false },
+              ],
+              columns: 4,
+              columnWidth: 'equal',
+            },
+            styles: {
+              backgroundColor: '#f9fafb',
+              borderColor: '#e5e7eb',
+              borderWidth: 1,
+              padding: 8,
+              fontSize: 10,
+            },
+          },
+          {
+            id: 'suggestions_table',
+            type: 'TABLE',
+            label: 'Lista de Reclamos y Sugerencias',
+            visible: true,
+            order: 3,
+            content: {
+              title: 'REGISTRO',
+              dataSource: 'suggestions',
+            },
+            columns: [
+              { key: 'date', label: 'FECHA', width: 25, align: 'left', format: 'date' },
+              { key: 'type', label: 'TIPO', width: 25, align: 'center' },
+              { key: 'resident', label: 'RESIDENTE', width: 'auto', align: 'left' },
+              { key: 'description', label: 'DESCRIPCIÓN', width: 'auto', align: 'left' },
+              { key: 'status', label: 'ESTADO', width: 25, align: 'center' },
+            ],
+            styles: {
+              headerBackground: '#8b5cf6',
+              headerColor: '#ffffff',
+              headerFont: 'Helvetica',
+              headerSize: 10,
+              bodyFont: 'Helvetica',
+              bodySize: 9,
+              borderWidth: 0.5,
+              alternatingRows: true,
+            },
+          },
+          {
+            id: 'footer',
+            type: 'FOOTER',
+            label: 'Pie de Página',
+            visible: true,
+            order: 4,
             content: {
               text: 'Documento generado por PIVOT CRM',
               showPageNumbers: true,

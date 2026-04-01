@@ -429,6 +429,16 @@ export async function getTemplateForDocument(
     return templates[documentType] as PdfTemplate;
   }
   
-  const { getDefaultTemplate } = await import('./pdfTemplateTypes');
-  return getDefaultTemplate(documentType as any);
+  return null;
+}
+
+export function getFilenameFromTemplate(
+  template: PdfTemplate | null,
+  defaultName: string
+): string {
+  const date = new Date().toISOString().split('T')[0];
+  if (template?.filename) {
+    return `${template.filename}_${date}.pdf`;
+  }
+  return `${defaultName}_${date}.pdf`;
 }
