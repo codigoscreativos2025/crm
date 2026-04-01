@@ -484,9 +484,9 @@ const endpoints: Endpoint[] = [
   {
     method: 'GET',
     path: '/api/condominiums/{id}/metrics/report',
-    title: 'Generar Reporte Financiero PDF',
-    description: 'Genera un PDF con el informe financiero completo del condominio.',
-    generalDescription: 'Genera un documento PDF consolidado con el resumen financiero del condominio. Incluye: total de ingresos/egresos, balance, porcentaje de morosidad, gráfico de ingresos vs egresos por mes, y desglose por categoría. Útil para reportes ejecutivos y auditoría.',
+    title: 'Generar Balance de Ingresos y Egresos PDF',
+    description: 'Genera un PDF con el reporte financiero completo del condominio.',
+    generalDescription: 'Genera un documento PDF consolidado con el balance de ingresos y egresos del condominio. Incluye: total de ingresos/egresos, balance, porcentaje de morosidad, gráfico de ingresos vs egresos por mes, y desglose por categoría. Útil para reportes ejecutivos y auditoría.',
     category: 'Métricas',
     auth: 'session | userApiKey',
     filters: [
@@ -637,6 +637,38 @@ const endpoints: Endpoint[] = [
     ],
     curl: `curl -X PUT "https://crm.pivotsoluciones.com/api/condominiums/1/suggestions/1?userApiKey=TU_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"status": "ATENDIDA", "adminNote": "Solicitud procesada"}'`,
     responseJSON: `{\n  "id": 1,\n  "status": "ATENDIDA",\n  "adminNote": "Solicitud procesada"\n}`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/payments/pending-export',
+    title: 'Exportar Pagos por Conciliar PDF',
+    description: 'Genera un PDF con los pagos pendientes de conciliación.',
+    generalDescription: 'Genera un documento PDF con la lista de pagos que se encuentran pendientes de conciliación (estado PENDING). Incluye filtros opcionales por rango de fechas. Útil para reportes de cobranza y seguimiento de pagos.',
+    category: 'Pagos',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'startDate', example: '&startDate=2026-01-01', description: 'Fecha inicial (opcional)' },
+      { name: 'endDate', example: '&endDate=2026-03-31', description: 'Fecha final (opcional)' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/payments/pending-export?userApiKey=TU_API_KEY&startDate=2026-01-01" \\\n  -H "Accept: application/pdf"`,
+    responseJSON: `// Archivo binario PDF (inline)`
+  },
+  {
+    method: 'GET',
+    path: '/api/condominiums/{id}/suggestions/export',
+    title: 'Exportar Reclamos y Sugerencias PDF',
+    description: 'Genera un PDF con los reclamos y sugerencias del condominio.',
+    generalDescription: 'Genera un documento PDF con el listado de reclamos y sugerencias de los residentes. Incluye filtros opcionales por tipo (SUGERENCIA, RECLAMO), estado (PENDIENTE, EN_PROCESO, ATENDIDA, RECHAZADA) y rango de fechas. Útil para reportes de atención al cliente.',
+    category: 'Sugerencias',
+    auth: 'session | userApiKey',
+    filters: [
+      { name: 'startDate', example: '&startDate=2026-01-01', description: 'Fecha inicial (opcional)' },
+      { name: 'endDate', example: '&endDate=2026-03-31', description: 'Fecha final (opcional)' },
+      { name: 'type', example: '&type=SUGERENCIA', description: 'Tipo: SUGERENCIA, RECLAMO, OTRO (opcional)' },
+      { name: 'status', example: '&status=PENDIENTE', description: 'Estado: PENDIENTE, EN_PROCESO, ATENDIDA, RECHAZADA (opcional)' }
+    ],
+    curl: `curl -X GET "https://crm.pivotsoluciones.com/api/condominiums/1/suggestions/export?userApiKey=TU_API_KEY&type=SUGERENCIA" \\\n  -H "Accept: application/pdf"`,
+    responseJSON: `// Archivo binario PDF (inline)`
   }
 ];
 
