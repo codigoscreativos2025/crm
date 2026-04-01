@@ -1241,6 +1241,18 @@ export default function PDFTemplateEditor({ condoId, initialDocType = 'invoice',
           >
             <ChevronRight className="w-5 h-5" />
           </button>
+          <div className="ml-4">
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Nombre del Archivo
+            </label>
+            <input
+              type="text"
+              value={template?.filename || ''}
+              onChange={(e) => setTemplate(template ? { ...template, filename: e.target.value } : null)}
+              placeholder="Nombre del PDF"
+              className="border rounded-lg px-3 py-2 text-sm font-medium min-w-[180px]"
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

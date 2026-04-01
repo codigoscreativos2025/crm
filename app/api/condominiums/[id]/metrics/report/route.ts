@@ -97,7 +97,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         // Title
         doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
-        doc.text('INFORME FINANCIERO', 105, 20, { align: 'center' });
+        doc.text('BALANCE DE INGRESOS Y EGRESOS', 105, 20, { align: 'center' });
 
         // Condo info
         doc.setFontSize(12);
@@ -211,7 +211,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `inline; filename="Informe_Financiero_${new Date().toISOString().split('T')[0]}.pdf"`
+                'Content-Disposition': `inline; filename="Balance_de_Ingresos_y_Egresos_${new Date().toISOString().split('T')[0]}.pdf"`
             }
         });
 

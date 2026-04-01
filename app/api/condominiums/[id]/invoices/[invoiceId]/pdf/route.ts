@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateCondoRequest } from "@/lib/condoAuth";
-import { getTemplateForDocument, renderTemplateToPdf } from "@/lib/pdfTemplateRenderer";
+import { getTemplateForDocument, renderTemplateToPdf, getFilenameFromTemplate } from "@/lib/pdfTemplateRenderer";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string, invoiceId: string } }) {
     const auth = await authenticateCondoRequest(req);
@@ -86,11 +86,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string, 
 
         const pdfBuffer = await renderTemplateToPdf(template, renderData);
 
+        const filename = getFilenameFromTemplate(template, `Factura_${invoice.id}_${invoice.month}_${invoice.year}`);
+
         return new Response(pdfBuffer as unknown as BodyInit, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `inline; filename="Factura_${invoice.id}_${invoice.month}_${invoice.year}.pdf"`
+                'Content-Disposition': `inline; filename="${filename}"`
             }
         });
 
